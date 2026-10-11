@@ -1,81 +1,85 @@
 "use client"
 
-import { encodeFunctionData } from "viem"
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { ViewTransition, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowDownLeft, ArrowUpRight, KeyRound, Loader2 } from "lucide-react"
+import { formatUnits } from "viem"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { chequeBookAbi, factoryAbi } from "@/lib/abi"
-import { DAYS, FEE_ALLOWANCE, keyStorage } from "@/lib/cheque-book"
+import { factoryAbi } from "@/lib/abi"
+import { DAYS } from "@/lib/cheque-book"
 import { FACTORY } from "@/lib/chain"
 import { chequeLink } from "@/lib/cheque-link"
 import { publicClient } from "@/lib/cheque-payment"
 import { formatMon, formatUsdc, parseUsdc } from "@/lib/money"
-import { NO_PERMIT, signPermit } from "@/lib/permit"
-import { sealChequeKey } from "@/lib/link-vault"
-import { sendChecked } from "@/lib/wallet-send"
+import { FinalTransactionError, sendChecked } from "@/lib/wallet-send"
+import {
+  clearWriteDraft,
+  readWriteDraft,
+  saveWriteDraft,
+  type WriteDraft,
+} from "@/lib/write-draft"
+import {
+  acknowledgeSponsor,
+  clearPendingSponsor,
+  readPendingSponsor,
+} from "@/lib/sponsor-pending"
+import {
+  prepareChequeWrite,
+  prepareNativeChequeWrite,
+} from "@/lib/issuer-write"
 import { useIssuer } from "./app"
 import { Bar, ChequeRow, ErrorLine, Page } from "./ui"
 
 export function Home() {
-  const { wallet, busy, run, setCopied, vault } = useIssuer()
+  const { wallet, busy, run, setCopied, vault, sponsor } = useIssuer()
   const router = useRouter()
 
   if (!wallet) return <HomeSkeleton />
   const { book, account } = wallet
-  const spareGas = book?.spareGas ?? 0n
   // Active holds every cheque that still holds money or fees; history holds the closed ones.
   const open = book?.cheques.filter((c) => c.active) ?? []
   const closedCount = (book?.cheques.length ?? 0) - open.length
 
   const write = (amount: bigint, days: number) =>
     run("write", async ({ client }) => {
-      const key = generatePrivateKey()
-      const signer = privateKeyToAccount(key).address
-      // Keep the key before the transaction so the link is never lost.
-      localStorage.setItem(keyStorage(account, signer), key)
-      const expiry = BigInt(Math.floor(Date.now() / 1000) + days * 86400)
-      const pull = !book
-        ? amount
-        : amount > book.available
-          ? amount - book.available
-          : 0n
-      const topUp = FEE_ALLOWANCE > spareGas ? FEE_ALLOWANCE - spareGas : 0n
-      const permit =
-        pull > 0n
-          ? await signPermit(client, book?.address ?? FACTORY!, pull)
-          : NO_PERMIT
-      // With a passkey vault, the link's key is sealed on-chain so it can be restored on any device.
-      const sealed = vault ? await sealChequeKey(vault, key) : "0x"
-      await sendChecked(
-        client,
-        book?.address ?? FACTORY!,
-        book
-          ? encodeFunctionData({
-              abi: chequeBookAbi,
-              functionName: "fundAndWrite",
-              args: [
-                signer,
-                amount,
-                expiry,
-                FEE_ALLOWANCE,
-                pull,
-                permit,
-                sealed,
-              ],
-            })
-          : encodeFunctionData({
-              abi: factoryAbi,
-              functionName: "createAndWrite",
-              args: [signer, amount, expiry, FEE_ALLOWANCE, permit, sealed],
-            }),
-        topUp
-      )
+      const draft = await prepareChequeWrite(client, book, vault, amount, days)
+      const { key, signer } = draft
+      try {
+        if (book?.cheques.some((cheque) => cheque.signer === signer)) {
+          // A lost HTTP response must not keep an already written cheque stuck in the form.
+          const pending = readPendingSponsor(account)
+          if (pending?.transaction.data === draft.data)
+            clearPendingSponsor(account)
+        } else if (draft.hash) {
+          const receipt = await publicClient.waitForTransactionReceipt({
+            hash: draft.hash,
+          })
+          acknowledgeSponsor(account, draft.hash)
+          if (receipt.status !== "success")
+            throw new FinalTransactionError("The transaction failed.")
+        } else
+          await sendChecked(
+            client,
+            draft.to,
+            draft.data,
+            BigInt(draft.value),
+            sponsor,
+            () => prepareNativeChequeWrite(client, draft),
+            (hash) => saveWriteDraft(account, { ...draft, hash })
+          )
+      } catch (error) {
+        if (
+          error instanceof FinalTransactionError &&
+          !readPendingSponsor(account)
+        )
+          clearWriteDraft(account)
+        throw error
+      }
+      clearWriteDraft(account)
       const bookAddress =
         book?.address ??
         (await publicClient.readContract({
@@ -118,6 +122,8 @@ export function Home() {
       </div>
 
       <WriteCheque
+        key={account}
+        pending={readWriteDraft(account)}
         busy={busy === "write"}
         disabled={!!busy || !FACTORY}
         max={wallet.usdc + (book?.available ?? 0n)}
@@ -240,17 +246,23 @@ function WriteCheque({
   busy,
   disabled,
   max,
+  pending,
   onWrite,
 }: {
   busy: boolean
   disabled: boolean
   max: bigint
+  pending: WriteDraft | null
   onWrite: (amount: bigint, days: number) => Promise<boolean>
 }) {
-  const [amountText, setAmountText] = useState("")
-  const [days, setDays] = useState(7)
+  const [amountText, setAmountText] = useState(
+    pending ? formatUnits(BigInt(pending.amount), 6) : ""
+  )
+  const [days, setDays] = useState(pending?.days ?? 7)
   const amount = parseUsdc(amountText)
-  const tooMuch = amount !== null && amount > max
+  const resuming =
+    pending && amount?.toString() === pending.amount && days === pending.days
+  const tooMuch = !resuming && amount !== null && amount > max
   return (
     <section className="flex flex-col gap-4">
       <Label className="cursor-text border-b pb-2 tracking-normal normal-case select-auto">

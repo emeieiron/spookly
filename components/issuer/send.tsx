@@ -32,7 +32,11 @@ import {
   networkByChainId,
   type Network,
 } from "@/lib/networks"
-import { sendChecked, type SignerClient } from "@/lib/wallet-send"
+import {
+  sendChecked,
+  type SignerClient,
+  type SponsorSender,
+} from "@/lib/wallet-send"
 import { useIssuer } from "./app"
 import { Bar, Page, PageTitle } from "./ui"
 
@@ -46,7 +50,7 @@ type Sent = {
 }
 
 export function Send() {
-  const { wallet, refresh, goBack } = useIssuer()
+  const { wallet, refresh, goBack, sponsor } = useIssuer()
   if (!wallet)
     return (
       <Page>
@@ -62,6 +66,7 @@ export function Send() {
         balance={wallet.usdc}
         onDone={goBack}
         onSent={refresh}
+        sponsor={sponsor}
       />
     </Page>
   )
@@ -72,11 +77,13 @@ function SendForm({
   balance,
   onDone,
   onSent,
+  sponsor,
 }: {
   client: SignerClient
   balance: bigint
   onDone: () => void
   onSent: () => void
+  sponsor: SponsorSender
 }) {
   const [amountText, setAmountText] = useState("")
   const [recipient, setRecipient] = useState("")
@@ -167,7 +174,9 @@ function SendForm({
             abi: erc20Abi,
             functionName: "transfer",
             args: [to, amount],
-          })
+          }),
+          0n,
+          sponsor
         )
       } else {
         const allowance = await publicClient.readContract({
@@ -184,7 +193,9 @@ function SendForm({
               abi: erc20Abi,
               functionName: "approve",
               args: [TOKEN_MESSENGER, total],
-            })
+            }),
+            0n,
+            sponsor
           )
         hash = await sendChecked(
           client,
@@ -202,7 +213,9 @@ function SendForm({
               STANDARD_FINALITY,
               FORWARD_HOOK,
             ],
-          })
+          }),
+          0n,
+          sponsor
         )
       }
       setSent({ amount, recipient: to, network, hash, delivered: local })

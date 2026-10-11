@@ -17,7 +17,12 @@ import {
 } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { usePrivy, useWallets } from "@privy-io/react-auth"
+import {
+  useMfa,
+  usePrivy,
+  useRegisterMfaListener,
+  useWallets,
+} from "@privy-io/react-auth"
 import { Check, Copy, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,7 +44,9 @@ import {
 import { FACTORY, USDC, erc20Abi, monadTestnet } from "@/lib/chain"
 import { errorMessage, publicClient } from "@/lib/cheque-payment"
 import { shortAddress } from "@/lib/money"
-import type { SignerClient } from "@/lib/wallet-send"
+import type { SignerClient, SponsorSender } from "@/lib/wallet-send"
+import { WalletProtection } from "./wallet-protection"
+import { useSponsorship } from "./use-sponsorship"
 
 export type Wallet = {
   account: Address
@@ -52,6 +59,7 @@ export type Wallet = {
 
 type Issuer = {
   wallet: Wallet | null
+  sponsor: SponsorSender
   busy: string | null
   error: string | null
   setError: (error: string | null) => void
@@ -114,6 +122,25 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     wallets.find(
       (w) => w.address.toLowerCase() === user?.wallet?.address?.toLowerCase()
     ) ?? wallets[0]
+  const embedded = active?.walletClientType === "privy"
+  const embeddedAccount = user?.linkedAccounts.find(
+    (w) =>
+      w.type === "wallet" &&
+      w.walletClientType === "privy" &&
+      w.address.toLowerCase() === active?.address.toLowerCase()
+  )
+  const sponsor = useSponsorship(
+    embeddedAccount?.type === "wallet"
+      ? (embeddedAccount.id ?? undefined)
+      : undefined
+  )
+  const { promptMfa } = useMfa()
+  // Wallet approval screens are hidden; MFA challenges must still open their own verification modal.
+  useRegisterMfaListener({
+    onMfaRequired: async () => {
+      await promptMfa()
+    },
+  })
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -143,6 +170,8 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
         await target.switchChain(monadTestnet.id)
         const provider = (await target.getEthereumProvider()) as EIP1193Provider
         const account = getAddress(target.address)
+        if ((await publicClient.getChainId()) !== monadTestnet.id)
+          throw new Error("Pippo requires Monad testnet.")
         if (live) await load(account, walletClientFor(account, provider))
       } catch (e) {
         if (live) setError(errorMessage(e))
@@ -194,7 +223,8 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     setError(null)
     try {
       const result = await action(wallet)
-      await load(wallet.account, wallet.client)
+      // An indexing/RPC refresh failure must not turn a confirmed write into a failed action.
+      await load(wallet.account, wallet.client).catch(() => {})
       return result
     } catch (e) {
       setError(errorMessage(e))
@@ -303,6 +333,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     <IssuerContext.Provider
       value={{
         wallet: connected ? wallet : null,
+        sponsor,
         busy,
         error,
         setError,
@@ -325,6 +356,11 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
       <AppFrame
         account={connected ? wallet.account : undefined}
         onSignOut={signedIn ? signOut : undefined}
+        protection={
+          signedIn && embedded ? (
+            <WalletProtection disabled={!!busy || !connected} />
+          ) : undefined
+        }
       >
         {!ready ? null : !authenticated ? (
           <div className="flex flex-col gap-6">
@@ -357,10 +393,12 @@ export function AppFrame({
   children,
   account,
   onSignOut,
+  protection,
 }: {
   children?: React.ReactNode
   account?: Address
   onSignOut?: () => void
+  protection?: React.ReactNode
 }) {
   const [confirming, setConfirming] = useState(false)
   return (
@@ -396,6 +434,7 @@ export function AppFrame({
         ) : (
           <div className="flex items-center gap-1">
             {account && <CopyAddress account={account} />}
+            {protection}
             {onSignOut && (
               <Button
                 size="icon-sm"

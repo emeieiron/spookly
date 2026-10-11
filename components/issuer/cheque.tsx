@@ -18,6 +18,7 @@ import { Bar, ErrorLine, Page, PageTitle } from "./ui"
 export function ChequeDetail({ id }: { id: string }) {
   const {
     wallet,
+    sponsor,
     busy,
     run,
     copied,
@@ -77,7 +78,9 @@ export function ChequeDetail({ id }: { id: string }) {
           abi: chequeBookAbi,
           functionName: "cancel",
           args: [cheque.signer],
-        })
+        }),
+        0n,
+        sponsor
       )
     )
     setConfirming(false)
