@@ -1,0 +1,2 @@
+# Keeps the indexer its own pnpm project, separate from the web app's install and lockfile.
+packages: []

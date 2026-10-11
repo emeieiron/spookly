@@ -15,9 +15,14 @@ import {
 import { ExternalLink } from "@/components/external-link"
 import { ProductMock } from "@/components/landing/product-mock"
 import { buttonVariants } from "@/components/ui/button"
+import { activityStats, type ActivityStats } from "@/lib/activity"
+import { formatUsdc } from "@/lib/money"
 import { NETWORKS } from "@/lib/networks"
 import { cn } from "@/lib/utils"
 import "./landing.css"
+
+// Live stats come from the indexer, so the page is regenerated at most once a minute.
+export const revalidate = 60
 
 export const metadata: Metadata = {
   title: "Pippo · Spendable links",
@@ -199,7 +204,8 @@ const OpenApp = ({
   </Link>
 )
 
-export default function Landing() {
+export default async function Landing() {
+  const stats = await activityStats()
   return (
     <div className="min-h-svh overflow-x-clip">
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
@@ -487,6 +493,7 @@ export default function Landing() {
               Circle&apos;s Forwarding Service burned it on Monad and minted it
               on Base, while the issuer&apos;s deposit covered every fee.
             </p>
+            {stats && <LiveStats stats={stats} />}
           </div>
           <div className="flex flex-col gap-5 border bg-card p-6 shadow-xl sm:p-8">
             <span className="text-sm font-semibold tracking-widest uppercase">
@@ -547,6 +554,34 @@ export default function Landing() {
           <span>Testnet only. Test USDC has no value.</span>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function LiveStats({ stats }: { stats: ActivityStats }) {
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <span className="flex items-center gap-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+        <span className="size-1.5 animate-pulse bg-emerald-500" />
+        Live on Monad testnet
+      </span>
+      <dl className="grid grid-cols-3 gap-px border bg-border">
+        {[
+          ["Cheques written", stats.cheques.toLocaleString("en-US")],
+          ["Paid from links", formatUsdc(stats.paidOut)],
+          ["Delivered cross-network", stats.delivered.toLocaleString("en-US")],
+        ].map(([label, value]) => (
+          <div key={label} className="flex flex-col gap-1 bg-background p-4">
+            <dt className="order-2 text-xs text-muted-foreground">{label}</dt>
+            <dd className="text-2xl font-semibold tracking-tight tabular-nums">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <span className="font-mono text-xs text-muted-foreground">
+        Indexed across Monad and nine networks with Envio
+      </span>
     </div>
   )
 }

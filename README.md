@@ -21,6 +21,7 @@ Pippo turns a USDC payment into a _cheque_: an amount set aside on Monad, dated,
   - [Paying across networks with CCTP](#paying-across-networks-with-cctp)
   - [Passkey-backed links: one passkey, many keys](#passkey-backed-links-one-passkey-many-keys)
   - [Issuer accounts and Monad-safe transactions](#issuer-accounts-and-monad-safe-transactions)
+  - [Payment history across ten chains with Envio](#payment-history-across-ten-chains-with-envio)
 - [Security model](#security-model)
 - [Supported networks](#supported-networks)
 - [Deployment](#deployment)
@@ -94,6 +95,10 @@ flowchart TB
     K -- "signed UserOperation<br/>pay / payCrossChain" --> P --> A --> EP --> B
     B -- transfer --> U --> M
     B -- "depositForBurnWithHook" --> TM --> C -- "mint, gas paid by Circle" --> D
+    X[(Envio indexer<br/>Monad + 9 networks)]
+    B -. "writes, payments, burns" .-> X
+    D -. "MessageReceived mints" .-> X
+    X -. "payment history, live stats" .-> W
 ```
 
 There is no Pippo backend holding funds or keys. The only server code is a narrow relay that forwards cheque payments to a bundler while keeping the bundler's API key private.
@@ -230,6 +235,19 @@ Passkeys are bound to the site's domain, and new passkeys are named with their c
 - **Live balances.** Wallet and cheque balances refresh every 10 seconds and whenever the tab regains focus.
 - **Wallet screens.** The issuer can receive USDC and MON, and send USDC to any address on Monad or, through the same CCTP and forwarding route, to any of the nine other networks.
 
+### Payment history across ten chains with Envio
+
+The contracts hold each cheque's current state, but not its history. An **Envio HyperIndex** indexer adds the history: it follows the cheque books on Monad and Circle's CCTP MessageTransmitterV2 on all nine destination networks in a single indexer.
+
+- **Cheque books.** The factory's `BookCreated` event registers each new ChequeBook as a dynamic contract. Its `ChequeWritten`, `ChequeCancelled`, `Paid` and `PaidCrossChain` events become `Book`, `Cheque` and `Payment` entities.
+- **Deliveries, proven on the destination chain.** Every CCTP mint emits `MessageReceived` carrying the original burn message. That message names the paying cheque book as `messageSender`, the payee, the amount burned and the fee Circle actually took. A cross-network payment is marked delivered when its mint is indexed on the destination chain, with the payee's exact received amount and the mint transaction, without relying on Circle's API.
+- **Linking burns to mints, in either order.** HyperIndex processes chains independently, so a mint on Base can be indexed before its burn on Monad. Each side waits under a shared key (paying book, destination domain, payee, amount burned), and whichever arrives second completes the payment.
+- **Live totals.** A `Stats` entity counts cheques written, USDC paid out and cross-network deliveries. The landing page shows these, regenerated at most once a minute.
+
+In the app, each cheque's page lists its payments: amount, payee, network, and whether the payment was paid, is on its way, or was delivered, each linked to the right explorer. Monad and six of the destination testnets sync through HyperSync. Unichain, Linea and World Chain Sepolia sync over RPC.
+
+The indexer is optional. Without `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` the app works the same, without the payment list and live stats.
+
 ## Security model
 
 | Threat | Mitigation |
@@ -282,6 +300,7 @@ Each issuer's ChequeBook is deployed by the factory on their first cheque and ca
 | UI | Tailwind CSS v4, shadcn/ui on Base UI, React view transitions |
 | Accounts | Privy (Google, email, external wallets, embedded wallets) |
 | Passkeys | WebAuthn PRF through Mera, Web Crypto (HKDF, AES-GCM), IndexedDB |
+| Indexing | Envio HyperIndex v3 and HyperSync, multichain with dynamic contracts, GraphQL |
 
 ## Running locally
 
@@ -299,6 +318,7 @@ pnpm dev                       # http://localhost:3000
 | `ALCHEMY_API_KEY` | Payments | Server-side key for the Monad testnet bundler. Alternatively set `BUNDLER_RPC_URL` to any EntryPoint v0.7 bundler |
 | `MONAD_RPC_URL`, `NEXT_PUBLIC_MONAD_RPC_URL` | Optional | RPC overrides. The default is Monad's public testnet RPC |
 | `DEPLOYER_PRIVATE_KEY` | Deploy, smoke test | A testnet-only key holding MON (and USDC for the smoke test) |
+| `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` | Optional | The indexer's GraphQL endpoint, for payment history and live stats |
 
 Test funds: [Circle USDC faucet](https://faucet.circle.com) and the [Monad faucet](https://faucet.monad.xyz).
 
@@ -310,6 +330,16 @@ pnpm contracts:build     # compile and regenerate the app's ABI bindings
 pnpm contracts:deploy    # deploy the factory and record its address for the app
 ```
 
+**Indexer (optional):** needs Docker and a free [Envio API token](https://envio.dev/app/api-tokens) for HyperSync.
+
+```bash
+pnpm indexer:install
+echo "ENVIO_API_TOKEN=<your token>" > indexer/.env
+pnpm indexer:dev                                   # GraphQL on http://localhost:8080/v1/graphql
+```
+
+Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql` for the app. To host it, deploy the `indexer` folder on Envio's hosted service, with `indexer` as the root directory and `config.yaml` as the config file. Then point the app's variable at the hosted endpoint.
+
 **Fully local fork:** run `anvil --fork-url https://testnet-rpc.monad.xyz`, deploy with `MONAD_RPC_URL=http://127.0.0.1:8545`, start the bundled minimal bundler with `pnpm dev:fork`, then run the app with `NEXT_PUBLIC_MONAD_RPC_URL` and `MONAD_RPC_URL` pointing at anvil and `BUNDLER_RPC_URL=http://localhost:4337`.
 
 ## Testing
@@ -318,6 +348,7 @@ pnpm contracts:deploy    # deploy the factory and record its address for the app
 |---|---|
 | `pnpm contracts:test` | 14 Foundry tests on a Monad testnet fork: one-transaction writes, shortfall-only funding, sealed-key storage, payments on Monad and burns for other networks, per-cheque nonces, wrong-key and overspend rejection before fees are charged, cross-cheque nonce misuse, cancellation refunds (keeping fees other cheques still need), expiry, and issuer-only guards |
 | `pnpm test` | Passkey vault: deterministic derivation, sealing and opening, wrong passkey, tampered nonce or ciphertext, seals moved to another cheque, malformed seals, restoring many links in one pass, corrupted local keys, and sign-out cleanup |
+| `pnpm --dir indexer test` | Indexer: decoding a real CCTP burn message, burn and mint keys agreeing across chains, non-matching payments, domain mapping |
 | `pnpm smoke` | End to end on real Monad testnet: writes a cheque, pays 0.5 USDC to Base Sepolia through the bundler, and waits for Circle's forwarder to deliver |
 | `pnpm typecheck`, `pnpm lint` | TypeScript and ESLint |
 

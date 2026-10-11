@@ -1,0 +1,73 @@
+type Book {
+  id: ID! # cheque book address
+  owner: String!
+  createdAt: BigInt!
+  txHash: String!
+  cheques: [Cheque!]! @derivedFrom(field: "book")
+}
+
+type Cheque {
+  id: ID! # the cheque key's address
+  book: Book!
+  amount: BigInt!
+  expiry: BigInt!
+  gasBudget: BigInt!
+  writtenAt: BigInt!
+  writtenTx: String!
+  # USDC that has left the cheque, cross-network fees included.
+  spent: BigInt!
+  paymentCount: Int!
+  cancelledAt: BigInt
+  refunded: BigInt
+  payments: [Payment!]! @derivedFrom(field: "cheque")
+}
+
+type Payment {
+  id: ID! # chainId-txHash-logIndex of the payment on Monad
+  cheque: Cheque!
+  book: String!
+  recipient: String!
+  chainId: Int! # where the payee is paid
+  domain: Int! # CCTP domain of that chain
+  amount: BigInt! # what the payer asked to send
+  maxFee: BigInt! # forwarding fee allowed (0 on Monad)
+  status: String! # "delivered" | "in_transit"
+  timestamp: BigInt!
+  txHash: String!
+  received: BigInt # what the payee got
+  feeExecuted: BigInt
+  deliveredAt: BigInt
+  deliveryTxHash: String
+}
+
+# A CCTP mint of USDC burned on Monad.
+type Mint {
+  id: ID! # chainId-txHash-logIndex
+  chainId: Int!
+  sender: String! # the burning address on Monad
+  recipient: String!
+  burned: BigInt!
+  feeExecuted: BigInt!
+  timestamp: BigInt!
+  txHash: String!
+  payment: String
+}
+
+# Chains are indexed independently, so a mint can be seen before its burn. Burns and mints wait here under a shared
+# key until their counterpart arrives, whichever chain is first.
+type CrossChainMatch {
+  id: ID! # sender-domain-recipient-burned
+  burns: [String!]! # unmatched Payment ids, oldest first
+  mints: [String!]! # unmatched Mint ids, oldest first
+}
+
+type Stats {
+  id: ID! # "global"
+  books: Int!
+  cheques: Int!
+  written: BigInt! # USDC escrowed into cheques
+  payments: Int!
+  paidOut: BigInt! # USDC payees asked for
+  crossChainPayments: Int!
+  delivered: Int! # cross-network payments confirmed on their destination
+}
