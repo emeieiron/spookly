@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
   title: "Pippo",
-  description: "USDC cheques shared as links, payable on any CCTP network.",
+  description:
+    "Spendable links: USDC cheques anyone can spend straight from a link, on Monad or nine other networks.",
 }
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })

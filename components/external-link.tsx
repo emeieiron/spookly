@@ -1,5 +1,7 @@
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
+// A real link styled as a shadcn link button, so it keeps link semantics.
 export function ExternalLink({
   href,
   children,
@@ -8,14 +10,16 @@ export function ExternalLink({
   children: React.ReactNode
 }) {
   return (
-    <Button
-      variant="link"
-      size="xs"
-      nativeButton={false}
-      className="h-auto px-0 text-foreground"
-      render={<a href={href} target="_blank" rel="noreferrer" />}
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className={cn(
+        buttonVariants({ variant: "link", size: "xs" }),
+        "h-auto px-0 text-foreground"
+      )}
     >
       {children}
-    </Button>
+    </a>
   )
 }

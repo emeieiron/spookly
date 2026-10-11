@@ -328,7 +328,14 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
       >
         {!ready ? null : !authenticated ? (
           <div className="flex flex-col gap-6">
-            <h1 className="text-3xl font-semibold">Write USDC cheques</h1>
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl font-semibold tracking-tight">
+                Spendable links
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Write USDC cheques anyone can spend straight from a link.
+              </p>
+            </div>
             <Button size="lg" onClick={() => login()}>
               Sign in
             </Button>
