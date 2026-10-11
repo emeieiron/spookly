@@ -38,6 +38,7 @@ import {
   type SponsorSender,
 } from "@/lib/wallet-send"
 import { useIssuer } from "./app"
+import { readPendingTransfer } from "@/lib/sponsor-pending"
 import { Bar, Page, PageTitle } from "./ui"
 
 type Sent = {
@@ -85,8 +86,11 @@ function SendForm({
   onSent: () => void
   sponsor: SponsorSender
 }) {
-  const [amountText, setAmountText] = useState("")
-  const [recipient, setRecipient] = useState("")
+  const pending = readPendingTransfer(client.account.address)
+  const [amountText, setAmountText] = useState(
+    pending ? formatUnits(pending.amount, 6) : ""
+  )
+  const [recipient, setRecipient] = useState(pending?.recipient ?? "")
   const [chainId, setChainId] = useState(NETWORKS[0].chainId)
   const [fee, setFee] = useState<{ chainId: number; value: bigint } | null>(
     null
@@ -112,11 +116,16 @@ function SendForm({
         ? balance - currentFee
         : 0n
   const validRecipient = isAddress(recipient)
+  const resuming =
+    pending &&
+    local &&
+    amount === pending.amount &&
+    recipient.toLowerCase() === pending.recipient.toLowerCase()
   const problem =
     error ??
     (recipient && !validRecipient
       ? "That isn't a valid address."
-      : total !== null && total > balance
+      : !resuming && total !== null && total > balance
         ? `Your wallet has ${formatUsdc(balance)}.`
         : "")
 
@@ -365,13 +374,15 @@ function SendForm({
             busy ||
             amount === null ||
             total === null ||
-            total > balance ||
+            (!resuming && total > balance) ||
             !validRecipient
           }
           onClick={submit}
         >
           {busy ? (
             <Loader2 className="animate-spin" />
+          ) : resuming ? (
+            "Check transaction"
           ) : (
             `Send ${amount ? formatUsdc(amount) : ""}`
           )}

@@ -1,9 +1,15 @@
 import assert from "node:assert/strict"
 import { after, beforeEach, mock, test } from "node:test"
-import { toHex } from "viem"
+import { encodeFunctionData, toHex } from "viem"
+import { USDC, erc20Abi } from "./chain"
 import { privateKeyToAccount } from "viem/accounts"
 import { createSponsorSender } from "./sponsor-client"
-import { acknowledgeSponsor, readPendingSponsor } from "./sponsor-pending"
+import {
+  acknowledgeSponsor,
+  readPendingSponsor,
+  readPendingTransfer,
+  savePendingSponsor,
+} from "./sponsor-pending"
 import { sponsorRequest } from "./sponsorship"
 import { FinalTransactionError, type SignerClient } from "./wallet-send"
 
@@ -59,6 +65,40 @@ beforeEach(() => {
   mock.restoreAll()
 })
 after(() => mock.restoreAll())
+
+test("pending transfers restore the exact amount and recipient after reload", () => {
+  const tx = {
+    from: owner.address,
+    to: USDC,
+    value: "0x0" as const,
+    data: encodeFunctionData({
+      abi: erc20Abi,
+      functionName: "transfer",
+      args: [owner.address, 10_000n],
+    }),
+  }
+  savePendingSponsor(owner.address, {
+    id: requestId,
+    transaction: tx,
+    request: sponsorRequest(
+      "app",
+      "wallet",
+      requestId,
+      tx,
+      Date.now() + 60_000
+    ),
+    signature: "user-key-proof",
+    walletSignature: toHex(1n, { size: 65 }),
+  })
+  assert.deepEqual(readPendingTransfer(owner.address), {
+    recipient: owner.address,
+    amount: 10_000n,
+  })
+  assert.equal(
+    readPendingTransfer(privateKeyToAccount(toHex(2n, { size: 32 })).address),
+    null
+  )
+})
 
 test("pre-submission outages preserve the self-funded path", async () => {
   mock.method(globalThis, "fetch", async () => {

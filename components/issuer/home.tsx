@@ -40,6 +40,7 @@ export function Home() {
 
   if (!wallet) return <HomeSkeleton />
   const { book, account } = wallet
+  const pendingWrite = readWriteDraft(account)
   // Active holds every cheque that still holds money or fees; history holds the closed ones.
   const open = book?.cheques.filter((c) => c.active) ?? []
   const closedCount = (book?.cheques.length ?? 0) - open.length
@@ -123,7 +124,8 @@ export function Home() {
 
       <WriteCheque
         key={account}
-        pending={readWriteDraft(account)}
+        pending={pendingWrite}
+        checking={!!readPendingSponsor(account) || !!pendingWrite?.hash}
         busy={busy === "write"}
         disabled={!!busy || !FACTORY}
         max={wallet.usdc + (book?.available ?? 0n)}
@@ -247,12 +249,14 @@ function WriteCheque({
   disabled,
   max,
   pending,
+  checking,
   onWrite,
 }: {
   busy: boolean
   disabled: boolean
   max: bigint
   pending: WriteDraft | null
+  checking: boolean
   onWrite: (amount: bigint, days: number) => Promise<boolean>
 }) {
   const [amountText, setAmountText] = useState(
@@ -310,6 +314,8 @@ function WriteCheque({
           <Loader2 className="animate-spin" />
         ) : tooMuch ? (
           `Only ${formatUsdc(max)} available`
+        ) : checking && resuming ? (
+          "Check cheque"
         ) : (
           "Write cheque"
         )}
