@@ -10,7 +10,18 @@ import {
 } from "viem"
 import { chequeBookAbi, factoryAbi } from "../abi"
 import { FACTORY, USDC, erc20Abi, monadTestnet } from "../chain"
-import { SPONSOR_CHAIN_ID, type SponsorTransaction } from "../sponsorship"
+import {
+  SPONSOR_CHAIN_ID,
+  sponsorRequest,
+  type SponsorTransaction,
+} from "../sponsorship"
+import { sponsorExecution } from "./sponsor-execution"
+import {
+  isDelegated,
+  reserveShortfall,
+  reserveMessage,
+  SponsorFundingError,
+} from "../monad-reserve"
 
 export const sponsorClient = createPublicClient({
   chain: monadTestnet,
@@ -115,24 +126,27 @@ export async function validateSponsorTransaction(tx: SponsorTransaction) {
       })
     : zeroAddress
   if (!allowedSponsorCall(tx, book === zeroAddress ? null : book)) return false
-  const [gas, fees, balance] = await Promise.all([
-    sponsorClient.estimateGas({
-      account: tx.from,
-      to: tx.to,
-      data: tx.data,
-      value: BigInt(tx.value),
-      // Simulate the existing EOA permit path for gas estimation. The sponsored
-      // batch supplies the allowance before writing, including after delegation.
-      stateOverride: [
-        { address: tx.from, balance: parseEther("1000000"), code: "0x" },
-      ],
-    }),
-    sponsorClient.estimateFeesPerGas(),
+  const [balance, code] = await Promise.all([
     sponsorClient.getBalance({ address: tx.from }),
+    sponsorClient.getCode({ address: tx.from }),
   ])
+  const shortfall = reserveShortfall(balance, BigInt(tx.value))
+  if (shortfall > 0n) {
+    // An undelegated EOA can still use the original self-funded path. Avoid
+    // delegating it into a native-value transaction Monad cannot execute.
+    if (!isDelegated(code)) return false
+    throw new SponsorFundingError(reserveMessage(shortfall))
+  }
+  if (code && code !== "0x" && !isDelegated(code)) return false
   // The app covers transaction gas, never the cheque's recipient fee allowance.
   if (balance < BigInt(tx.value))
     throw new Error("Not enough MON for this cheque's fee allowance.")
+  const calls = sponsorRequest("", "", "", tx, 0, sponsorApproval(tx)).body
+    .params.calls
+  const [gas, fees] = await Promise.all([
+    sponsorClient.estimateGas(sponsorExecution(tx.from, code, calls)),
+    sponsorClient.estimateFeesPerGas(),
+  ])
   const batchEstimate = gas + 200_000n
   return (
     batchEstimate <= MAX_GAS &&

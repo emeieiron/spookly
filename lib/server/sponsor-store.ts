@@ -8,6 +8,7 @@ export type SponsorRecord = {
   request: SponsorRequest
   expiresAt: number
   transactionId?: string
+  retryOf?: string
 }
 
 // Reserve every limit and store the exact signed request in one atomic operation.

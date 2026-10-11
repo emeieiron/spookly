@@ -3,7 +3,16 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { after, before, beforeEach, describe, mock, test } from "node:test"
 import { randomUUID } from "node:crypto"
-import { getAddress, toHex } from "viem"
+import {
+  encodeFunctionData,
+  getAddress,
+  parseEther,
+  toHex,
+  zeroHash,
+} from "viem"
+import { chequeBookAbi } from "./abi"
+import { USDC } from "./chain"
+import { PRIVY_TESTNET_DELEGATE } from "./server/sponsor-execution"
 import { privateKeyToAccount } from "viem/accounts"
 import { serverPrivy } from "./server/privy"
 import { sponsorClient } from "./server/sponsor-policy"
@@ -277,6 +286,124 @@ describe(
       uncertain = false
       assert.equal((await POST(request(input))).status, 200)
     })
+    test("cheque retry reserves a new bounded attempt only for the identical absent cheque", async () => {
+      const book = getAddress("0x1111111111111111111111111111111111111111")
+      const tx = {
+        from: owner.address,
+        to: book,
+        value: toHex(parseEther("0.2")),
+        data: encodeFunctionData({
+          abi: chequeBookAbi,
+          functionName: "fundAndWrite",
+          args: [
+            other.address,
+            10000n,
+            9999999999n,
+            parseEther("0.3"),
+            10000n,
+            { deadline: 0n, v: 0, r: zeroHash, s: zeroHash },
+            "0x",
+          ],
+        }),
+      }
+      const previousId = id()
+      const item = {
+        ...record(previousId),
+        transactionId: "stalled",
+        request: sponsorRequest(
+          "test-app",
+          "wallet",
+          previousId,
+          tx,
+          Date.now() + 60000,
+          10000n
+        ),
+      }
+      await reserveSponsor(previousId, item, { wallet: 5, user: 5, app: 100 })
+      const overrides = [
+        mock.method(serverPrivy().transactions(), "get", async () => ({
+          wallet_id: "wallet",
+          caip2: "eip155:10143",
+          status: "broadcasted",
+          transaction_hash: "",
+        })),
+        mock.method(sponsorClient, "getChainId", async () => 10143),
+        mock.method(
+          sponsorClient,
+          "getCode",
+          async () => `0xef0100${PRIVY_TESTNET_DELEGATE.slice(2)}`
+        ),
+        mock.method(sponsorClient, "getBalance", async () => parseEther("20")),
+        mock.method(sponsorClient, "estimateGas", async () => 400000n),
+        mock.method(sponsorClient, "estimateFeesPerGas", async () => ({
+          maxFeePerGas: 100000000000n,
+        })),
+        mock.method(
+          sponsorClient,
+          "readContract",
+          async (input: { functionName: string }) =>
+            input.functionName === "bookOf"
+              ? book
+              : input.functionName === "owner"
+                ? owner.address
+                : [0n, 0n, false, 0n, 0n]
+        ),
+      ]
+      try {
+        const prepare = {
+          phase: "prepare",
+          walletId: "wallet",
+          retryOf: previousId,
+          transaction: tx,
+        }
+        const altered = await POST(
+          request({ ...prepare, transaction: { ...tx, value: "0x0" } })
+        )
+        assert.equal(altered.status, 409)
+        const transfer = {
+          ...tx,
+          to: USDC,
+          data: encodeFunctionData({
+            abi: [
+              {
+                type: "function",
+                name: "transfer",
+                inputs: [{ type: "address" }, { type: "uint256" }],
+                outputs: [],
+                stateMutability: "nonpayable",
+              },
+            ],
+            functionName: "transfer",
+            args: [owner.address, 10000n],
+          }),
+          value: "0x0",
+        }
+        assert.equal(
+          (await POST(request({ ...prepare, transaction: transfer }))).status,
+          409
+        )
+        const response = await POST(request(prepare))
+        assert.equal(response.status, 200)
+        const fresh = await response.json()
+        assert.notEqual(fresh.id, previousId)
+        assert.equal((await readSponsor(fresh.id))?.retryOf, previousId)
+        assert.deepEqual(
+          fresh.request.body.params.calls,
+          item.request.body.params.calls
+        )
+        assert.equal(providerCalls, 0) // Still requires fresh wallet authorization.
+        assert.equal(
+          await redis([
+            "GET",
+            sponsorReservationKeys(previousId, "user", owner.address)[0],
+          ]),
+          "2"
+        )
+      } finally {
+        for (const override of overrides) override.mock.restore()
+      }
+    })
+
     test("wrong RPC networks and wallets are rejected before reservation", async () => {
       const foreign = await POST(
         request({

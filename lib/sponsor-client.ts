@@ -44,7 +44,23 @@ export function createSponsorSender({
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     }
-    if (!pending) {
+    let retryOf: string | undefined
+    if (pending) {
+      const response = await fetch(
+        `/api/sponsor?id=${encodeURIComponent(pending.id)}`,
+        {
+          headers,
+          cache: "no-store",
+          signal: AbortSignal.timeout(10_000),
+        }
+      )
+      if (response.ok) {
+        const status = await response.json()
+        if (status.blocked) throw new Error(status.error ?? pendingMessage)
+        if (status.retryable) retryOf = pending.id
+      }
+    }
+    if (!pending || retryOf) {
       let response: Response
       try {
         response = await fetch("/api/sponsor", {
@@ -55,14 +71,22 @@ export function createSponsorSender({
             phase: "prepare",
             walletId,
             transaction: tx,
+            ...(retryOf ? { retryOf } : {}),
           }),
         })
       } catch {
+        if (pending) throw new Error(pendingMessage)
         return null
       } // No request has been signed or submitted yet.
-      if (!response.ok) return null
-      const prepared = await response.json()
-      if (!prepared.sponsored) return null
+      const prepared = await response.json().catch(() => null)
+      if (prepared?.blocked) {
+        if (pending) throw new Error(prepared.error)
+        throw new FinalTransactionError(prepared.error)
+      }
+      if (!response.ok || !prepared?.sponsored) {
+        if (pending) throw new Error(prepared?.error ?? pendingMessage)
+        return null
+      }
       if (
         prepared.request?.body?.caip2 !== `eip155:${SPONSOR_CHAIN_ID}` ||
         prepared.request?.url !==
@@ -80,6 +104,7 @@ export function createSponsorSender({
           prepared.request
         ))
       } catch {
+        if (pending) throw new Error(pendingMessage)
         throw new FinalTransactionError(
           "The wallet could not authorize this request. Please try again."
         )
@@ -90,6 +115,9 @@ export function createSponsorSender({
         transaction: tx,
         signature,
         walletSignature,
+        ...(pending
+          ? { previousIds: [...(pending.previousIds ?? []), pending.id] }
+          : {}),
       }
       // Persist before submission; retries always use the same provider idempotency key.
       savePendingSponsor(from, pending)
@@ -118,9 +146,13 @@ export function createSponsorSender({
       )
       if (response.ok) {
         const status = await response.json()
+        if (status.blocked) throw new Error(status.error ?? pendingMessage)
         if (
           ["failed", "reverted", "execution_reverted"].includes(status.status)
         ) {
+          // An older attempt for this same cheque may still execute. Retain
+          // its draft until the unique cheque key is reconciled on-chain.
+          if (pending.previousIds?.length) throw new Error(pendingMessage)
           clearPendingSponsor(from)
           throw new FinalTransactionError(
             "The transaction failed. Please try again."

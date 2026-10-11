@@ -106,6 +106,109 @@ test("pre-submission outages preserve the self-funded path", async () => {
   })
   assert.equal(await sender()(transaction), null)
   assert.equal(readPendingSponsor(owner.address), null)
+  mock.method(
+    globalThis,
+    "fetch",
+    async () => new Response("Bad gateway", { status: 502 })
+  )
+  assert.equal(await sender()(transaction), null)
+  assert.equal(readPendingSponsor(owner.address), null)
+})
+
+test("a reserve blocker stops before signing and cannot fall back to a native transaction", async () => {
+  mock.method(globalThis, "fetch", async () =>
+    Response.json(
+      { blocked: true, error: "Add MON to cover the reserve." },
+      { status: 422 }
+    )
+  )
+  await assert.rejects(sender()(transaction), /Add MON/)
+  assert.equal(readPendingSponsor(owner.address), null)
+})
+
+test("a guarded retry keeps the exact cheque transaction and retains the earlier provider request", async () => {
+  const original = {
+    from: owner.address,
+    to: owner.address,
+    data: transaction.data,
+    value: "0x0" as const,
+  }
+  savePendingSponsor(owner.address, {
+    id: requestId,
+    transaction: original,
+    request: sponsorRequest(
+      "app",
+      "wallet",
+      requestId,
+      original,
+      Date.now() - 60000
+    ),
+    signature: "old-proof",
+    walletSignature: toHex(1n, { size: 65 }),
+  })
+  const freshId = "22222222-2222-4222-8222-222222222222"
+  mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (init.method !== "POST")
+      return Response.json(
+        url.includes(requestId)
+          ? { status: "broadcasted", retryable: true }
+          : { status: "confirmed", hash }
+      )
+    const body = JSON.parse(init.body as string)
+    calls.push(body)
+    if (body.phase === "prepare") {
+      assert.equal(body.retryOf, requestId)
+      assert.deepEqual(body.transaction, original)
+      return Response.json({
+        sponsored: true,
+        id: freshId,
+        request: sponsorRequest(
+          "app",
+          "wallet",
+          freshId,
+          original,
+          Date.now() + 60000
+        ),
+      })
+    }
+    assert.equal(body.id, freshId)
+    return Response.json({ transactionId: "new-provider-id" })
+  })
+  assert.equal(await sender()(transaction), hash)
+  assert.equal(readPendingSponsor(owner.address)?.id, freshId)
+  assert.deepEqual(readPendingSponsor(owner.address)?.previousIds, [requestId])
+  assert.deepEqual(readPendingSponsor(owner.address)?.transaction, original)
+})
+
+test("a funding blocker on an accepted cheque preserves its pending request", async () => {
+  const original = {
+    from: owner.address,
+    to: owner.address,
+    data: transaction.data,
+    value: "0x0" as const,
+  }
+  savePendingSponsor(owner.address, {
+    id: requestId,
+    transaction: original,
+    request: sponsorRequest(
+      "app",
+      "wallet",
+      requestId,
+      original,
+      Date.now() - 60000
+    ),
+    signature: "old-proof",
+    walletSignature: toHex(1n, { size: 65 }),
+  })
+  mock.method(globalThis, "fetch", async () =>
+    Response.json({
+      status: "broadcasted",
+      blocked: true,
+      error: "Add MON to cover the reserve.",
+    })
+  )
+  await assert.rejects(sender()(transaction), /Add MON/)
+  assert.equal(readPendingSponsor(owner.address)?.id, requestId)
 })
 
 test("MFA or wallet authorization cancellation never submits a transaction", async () => {

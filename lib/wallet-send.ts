@@ -13,6 +13,7 @@ import {
 import { publicClient } from "./cheque-payment"
 import { formatMon } from "./money"
 import { acknowledgeSponsor } from "./sponsor-pending"
+import { isDelegated, reserveShortfall, reserveMessage } from "./monad-reserve"
 
 export type SignerClient = WalletClient<Transport, Chain, Account>
 export type SponsorSender = (tx: {
@@ -53,6 +54,14 @@ export async function sendChecked(
     return sponsoredHash
   }
   const valueBalance = await publicClient.getBalance({ address: from })
+  let delegated = false
+  if (value > 0n) {
+    const code = await publicClient.getCode({ address: from })
+    delegated = isDelegated(code)
+    const shortfall = reserveShortfall(valueBalance, value)
+    if (delegated && shortfall > 0n)
+      throw new FinalTransactionError(reserveMessage(shortfall))
+  }
   if (valueBalance < value)
     throw new FinalTransactionError(
       `Not enough MON: this needs ${formatMon(value)}, your wallet has ${formatMon(valueBalance)}.`
@@ -74,6 +83,10 @@ export async function sendChecked(
   // reverts it, so value and the gas limit must be covered together before signing.
   const limit = (gas * 11n) / 10n
   const need = value + limit * fees.maxFeePerGas
+  // An approval in beforeNative can spend gas after the first balance check.
+  const shortfall = reserveShortfall(balance, value)
+  if (delegated && shortfall > 0n)
+    throw new FinalTransactionError(reserveMessage(shortfall))
   if (balance < need)
     throw new FinalTransactionError(
       `Not enough MON: this needs ${formatMon(need)}, your wallet has ${formatMon(balance)}.`

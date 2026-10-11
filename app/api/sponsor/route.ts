@@ -13,6 +13,7 @@ import {
   sponsorApproval,
   sponsorLimits,
   validateSponsorTransaction,
+  sponsorClient,
 } from "@/lib/server/sponsor-policy"
 import {
   readSponsor,
@@ -20,6 +21,16 @@ import {
   saveSponsor,
   sponsorStoreConfigured,
 } from "@/lib/server/sponsor-store"
+import {
+  SponsorFundingError,
+  reserveShortfall,
+  reserveMessage,
+} from "@/lib/monad-reserve"
+import {
+  canRetryCheque,
+  sameChequeTransaction,
+  pendingCheque,
+} from "@/lib/server/sponsor-recovery"
 
 export const runtime = "nodejs"
 const json = (body: unknown, status = 200) =>
@@ -54,6 +65,24 @@ export async function POST(request: Request) {
       )
       if (!wallet?.id)
         return json({ error: "Wallet does not belong to this account." }, 403)
+      if (input.retryOf !== undefined) {
+        const previous = await readSponsor(input.retryOf)
+        if (
+          !previous ||
+          previous.userId !== user.id ||
+          previous.walletId !== wallet.id ||
+          !previous.transactionId ||
+          !sameChequeTransaction(previous, tx) ||
+          !(await canRetryCheque(
+            previous,
+            await serverPrivy().transactions().get(previous.transactionId)
+          ))
+        )
+          return json(
+            { error: "This transaction cannot be safely retried yet." },
+            409
+          )
+      }
       if (!(await validateSponsorTransaction(tx)))
         return json({ sponsored: false })
       const id = randomUUID()
@@ -63,6 +92,7 @@ export async function POST(request: Request) {
         walletId: wallet.id,
         walletAddress: tx.from,
         expiresAt,
+        ...(input.retryOf ? { retryOf: input.retryOf as string } : {}),
         request: sponsorRequest(
           process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
           wallet.id,
@@ -136,7 +166,9 @@ export async function POST(request: Request) {
       throw new Error("Missing transaction id.")
     await saveSponsor(input.id, { ...record, transactionId })
     return json({ transactionId })
-  } catch {
+  } catch (error) {
+    if (!submitted && error instanceof SponsorFundingError)
+      return json({ blocked: true, error: error.message }, 422)
     // Only pre-submission failures can safely fall back to a normal transaction.
     return submitted
       ? json(
@@ -167,7 +199,34 @@ export async function GET(request: Request) {
     const tx = await serverPrivy().transactions().get(record.transactionId)
     if (tx.wallet_id !== record.walletId || tx.caip2 !== SPONSOR_CAIP2)
       return json({ error: "Unexpected transaction network." }, 502)
-    return json({ status: tx.status, hash: tx.transaction_hash })
+    if (
+      !tx.transaction_hash &&
+      ["broadcasted", "pending", "provider_error"].includes(tx.status)
+    ) {
+      const cheque = pendingCheque(record)
+      if (cheque) {
+        const shortfall = reserveShortfall(
+          await sponsorClient.getBalance({
+            address: getAddress(record.walletAddress),
+          }),
+          BigInt(cheque.call.value)
+        )
+        // This describes a current execution blocker, not proof the provider
+        // dropped the operation. Preserve the request and cheque draft.
+        if (shortfall > 0n)
+          return json({
+            status: tx.status,
+            hash: tx.transaction_hash,
+            blocked: true,
+            error: reserveMessage(shortfall),
+          })
+      }
+    }
+    return json({
+      status: tx.status,
+      hash: tx.transaction_hash,
+      retryable: await canRetryCheque(record, tx),
+    })
   } catch {
     return json({ error: "Unable to check the transaction yet." }, 503)
   }

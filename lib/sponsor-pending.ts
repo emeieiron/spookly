@@ -9,6 +9,7 @@ export type PendingSponsor = {
   signature: string
   walletSignature: Hash
   hash?: Hash
+  previousIds?: string[]
 }
 const key = (address: string) => `pippo:sponsor:10143:${address.toLowerCase()}`
 export const readPendingSponsor = (address: string): PendingSponsor | null =>
