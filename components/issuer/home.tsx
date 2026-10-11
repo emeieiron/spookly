@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation"
 import { ArrowDownLeft, ArrowUpRight, KeyRound, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { chequeBookAbi, factoryAbi } from "@/lib/abi"
 import { DAYS, FEE_ALLOWANCE, keyStorage } from "@/lib/cheque-book"
 import { FACTORY } from "@/lib/chain"
@@ -163,27 +165,73 @@ export function Home() {
 
 // One passkey protects every cheque link, so links written here open on any device the passkey syncs to.
 function VaultStatus() {
-  const { wallet, vault, busy, setUpVault, unlockVault } = useIssuer()
-  const locked = !!wallet?.book?.cheques.some((c) => c.sealedKey !== "0x")
+  const {
+    vault,
+    passkeys,
+    links,
+    busy,
+    unlockFailed,
+    setUpVault,
+    unlockVault,
+  } = useIssuer()
+  if (!links) return <div className="-mt-4 h-5" />
+  const locked = links.locked.length
+  const known = !vault && links.ids.length > 0
+  const [text, actions]: [string, [string, () => void][]] =
+    (locked > 0 || known) && !vault && unlockFailed
+      ? [
+          "Passkey lost?",
+          [
+            ["New passkey", setUpVault],
+            ["Try again", unlockVault],
+          ],
+        ]
+      : locked > 0
+        ? [
+            `${locked} link${locked === 1 ? "" : "s"} locked to your passkey`,
+            [["Unlock", unlockVault]],
+          ]
+        : known
+          ? [
+              "Back up new links with your passkey",
+              [["Use passkey", unlockVault]],
+            ]
+          : vault
+            ? ["Links backed up to your passkey", []]
+            : passkeys
+              ? [
+                  "Open your cheque links on any device",
+                  [["Use passkey", setUpVault]],
+                ]
+              : passkeys === false
+                ? ["Links are saved on this device only", []]
+                : ["", []]
   return (
     <div className="-mt-4 flex h-5 items-center justify-between gap-3 text-xs text-muted-foreground">
-      <span className="flex items-center gap-1.5">
-        <KeyRound className="size-3.5" />
-        {vault
-          ? "Links backed up to your passkey"
-          : locked
-            ? "Your cheque links are locked to your passkey"
-            : "Open your cheque links on any device"}
+      <span className="flex min-w-0 items-center gap-1.5">
+        {text && <KeyRound className="size-3.5 shrink-0" />}
+        <span className="truncate">{text}</span>
       </span>
-      {!vault && (
-        <button
-          className="-my-2 py-2 font-semibold tracking-widest text-foreground uppercase disabled:opacity-50"
-          disabled={!!busy}
-          onClick={() => (locked ? unlockVault() : setUpVault())}
-        >
-          {busy === "vault" ? "Waiting…" : locked ? "Unlock" : "Use passkey"}
-        </button>
-      )}
+      <span className="-mr-2 flex shrink-0">
+        {busy === "vault" && actions.length > 0 ? (
+          <span className="px-2 font-semibold tracking-widest uppercase">
+            Waiting…
+          </span>
+        ) : (
+          actions.map(([label, onClick]) => (
+            <Button
+              key={label}
+              variant="ghost"
+              size="xs"
+              className="-my-1 px-2"
+              disabled={!!busy}
+              onClick={onClick}
+            >
+              {label}
+            </Button>
+          ))
+        )}
+      </span>
     </div>
   )
 }
@@ -205,7 +253,7 @@ function WriteCheque({
   const tooMuch = amount !== null && amount > max
   return (
     <section className="flex flex-col gap-4">
-      <label className="flex cursor-text border-b pb-2">
+      <Label className="cursor-text border-b pb-2 tracking-normal normal-case select-auto">
         <ViewTransition name="cheque-amount" share="morph" default="none">
           <span className="inline-flex items-baseline gap-2">
             <span className="text-4xl font-semibold text-muted-foreground">
@@ -221,21 +269,24 @@ function WriteCheque({
             />
           </span>
         </ViewTransition>
-      </label>
-      <div className="flex gap-2" role="radiogroup" aria-label="Valid for">
+      </Label>
+      <ToggleGroup
+        aria-label="Valid for"
+        variant="outline"
+        size="sm"
+        value={[String(days)]}
+        onValueChange={(v) => v[0] && setDays(Number(v[0]))}
+      >
         {DAYS.map((d) => (
-          <Button
+          <ToggleGroupItem
             key={d}
-            size="sm"
-            variant={days === d ? "default" : "outline"}
-            role="radio"
-            aria-checked={days === d}
-            onClick={() => setDays(d)}
+            value={String(d)}
+            className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/80"
           >
             {d}d
-          </Button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
       <Button
         size="lg"
         disabled={disabled || amount === null || tooMuch}

@@ -3,7 +3,10 @@
 import { privateKeyToAccount } from "viem/accounts"
 import { getAddress, isAddress, type Address, type Hash, type Hex } from "viem"
 import { useCallback, useEffect, useState } from "react"
-import { ArrowLeft, Check, Clock, Loader2 } from "lucide-react"
+import { Check, Clock, Loader2 } from "lucide-react"
+import { BackTitle } from "@/components/back-title"
+import { ExternalLink } from "@/components/external-link"
+import { NetworkSelect } from "@/components/network-select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,12 +23,7 @@ import {
   type PaymentPlan,
 } from "@/lib/cheque-payment"
 import { formatUsdc, parseUsdc, shortAddress } from "@/lib/money"
-import {
-  NETWORKS,
-  isLocal,
-  networkByChainId,
-  type Network,
-} from "@/lib/networks"
+import { isLocal, networkByChainId, type Network } from "@/lib/networks"
 import { parsePaymentRequest, type PaymentRequest } from "@/lib/payment-request"
 
 type Cheque = { book: Address; key: Hex; signer: Address }
@@ -213,13 +211,7 @@ export function ChequeHolder() {
   if (stage.kind === "confirm")
     return (
       <Shell>
-        <button
-          onClick={() => history.back()}
-          className="-my-2 flex h-9 items-center gap-2 self-start text-lg font-semibold"
-        >
-          <ArrowLeft className="size-5" />
-          Confirm payment
-        </button>
+        <BackTitle title="Confirm payment" onBack={() => history.back()} />
         <ConfirmPayment
           cheque={cheque}
           state={state}
@@ -351,21 +343,12 @@ function ConfirmPayment({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="network">Network</Label>
-        <select
+        <NetworkSelect
           id="network"
-          value={chainId ?? ""}
-          onChange={(e) =>
-            setChainId(e.target.value ? Number(e.target.value) : undefined)
-          }
-          className="h-10 border border-input bg-transparent px-3 text-base sm:text-sm"
-        >
-          <option value="">Choose the recipient&apos;s network</option>
-          {NETWORKS.map((n) => (
-            <option key={n.chainId} value={n.chainId}>
-              {n.name}
-            </option>
-          ))}
-        </select>
+          value={chainId}
+          onChange={setChainId}
+          placeholder="Choose the recipient's network"
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -546,26 +529,20 @@ function PaymentProgress({
         ))}
       </ol>
       {error && <p className="text-sm break-words text-destructive">{error}</p>}
-      <div className="flex flex-col gap-1 text-xs">
+      <div className="flex flex-col items-start gap-1">
         {pending.transactionHash && (
-          <a
-            className="underline"
-            target="_blank"
-            rel="noreferrer"
+          <ExternalLink
             href={`https://testnet.monadexplorer.com/tx/${pending.transactionHash}`}
           >
             View payment
-          </a>
+          </ExternalLink>
         )}
         {pending.forwardTxHash && !local && (
-          <a
-            className="underline"
-            target="_blank"
-            rel="noreferrer"
+          <ExternalLink
             href={`${network.explorer}/tx/${pending.forwardTxHash}`}
           >
             View delivery on {network.name}
-          </a>
+          </ExternalLink>
         )}
       </div>
       {error && !done && (

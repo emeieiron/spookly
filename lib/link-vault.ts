@@ -3,7 +3,8 @@ import {
   getPasskeyPrfOutput,
   isMeraError,
 } from "@category-labs/mera"
-import { bytesToHex, hexToBytes, type Address, type Hex } from "viem"
+import { bytesToHex, hexToBytes, isHex, type Address, type Hex } from "viem"
+import { privateKeyToAddress } from "viem/accounts"
 
 // "One passkey, many keys": a Pippo-specific PRF salt gives one 32-byte output per passkey, identical on every
 // device the passkey syncs to. HKDF splits it into keys that never sign anything: an AES-GCM key that seals
@@ -11,6 +12,7 @@ import { bytesToHex, hexToBytes, type Address, type Hex } from "viem"
 const NAMESPACE = "pippo.v1.cheque-links"
 const VERSION = 1
 const AAD = new TextEncoder().encode(NAMESPACE)
+const SEALED_LENGTH = 1 + 8 + 12 + 32 + 16
 
 export type LinkVault = { key: CryptoKey; id: Hex }
 
@@ -48,6 +50,7 @@ export async function deriveVault(prfOutput: Uint8Array): Promise<LinkVault> {
 }
 
 // Sealed layout: version (1) | key id (8) | nonce (12) | AES-GCM ciphertext of the 32-byte cheque key (48).
+// The seal is opened again before it is returned, so a broken one never reaches the chain.
 export async function sealChequeKey(
   vault: LinkVault,
   chequeKey: Hex
@@ -60,31 +63,40 @@ export async function sealChequeKey(
       new Uint8Array(hexToBytes(chequeKey))
     )
   )
-  return bytesToHex(
+  const sealed = bytesToHex(
     new Uint8Array([VERSION, ...hexToBytes(vault.id), ...nonce, ...ciphertext])
   )
+  const signer = privateKeyToAddress(chequeKey)
+  if ((await openChequeKey(vault, sealed, signer)) !== chequeKey)
+    throw new Error("Couldn't back up this link. Try again.")
+  return sealed
 }
 
 export const sealedKeyId = (sealed: Hex): Hex | null => {
+  if (!isHex(sealed) || (sealed.length - 2) / 2 !== SEALED_LENGTH) return null
   const bytes = hexToBytes(sealed)
-  return bytes.length > 9 && bytes[0] === VERSION
-    ? bytesToHex(bytes.slice(1, 9))
-    : null
+  return bytes[0] === VERSION ? bytesToHex(bytes.slice(1, 9)) : null
 }
 
+// Resolves to the cheque key only when it decrypts and controls `signer`, so a damaged or misplaced seal reads as null.
 export async function openChequeKey(
   vault: LinkVault,
-  sealed: Hex
+  sealed: Hex,
+  signer: Address
 ): Promise<Hex | null> {
-  const bytes = hexToBytes(sealed)
   if (sealedKeyId(sealed) !== vault.id) return null
+  const bytes = hexToBytes(sealed)
   try {
-    const plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: bytes.slice(9, 21), additionalData: AAD },
-      vault.key,
-      bytes.slice(21)
+    const key = bytesToHex(
+      new Uint8Array(
+        await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: bytes.slice(9, 21), additionalData: AAD },
+          vault.key,
+          bytes.slice(21)
+        )
+      )
     )
-    return bytesToHex(new Uint8Array(plain))
+    return privateKeyToAddress(key) === signer ? key : null
   } catch {
     return null
   }
@@ -93,13 +105,25 @@ export async function openChequeKey(
 // The derived key is kept per device as a non-extractable CryptoKey, so sealing a new cheque needs no prompt.
 const DB = "pippo"
 const STORE = "link-vault"
+let opening: Promise<IDBDatabase> | null = null
 const db = () =>
-  new Promise<IDBDatabase>((resolve, reject) => {
+  (opening ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB, 1)
     request.onupgradeneeded = () => request.result.createObjectStore(STORE)
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => {
+      // Let a newer tab upgrade the database instead of blocking on this connection.
+      request.result.onversionchange = () => {
+        request.result.close()
+        opening = null
+      }
+      resolve(request.result)
+    }
     request.onerror = () => reject(request.error)
-  })
+    request.onblocked = () => reject(new Error("Vault storage is busy"))
+  }).catch((e) => {
+    opening = null
+    throw e
+  }))
 const tx = async <T>(
   mode: IDBTransactionMode,
   run: (store: IDBObjectStore) => IDBRequest<T>
@@ -112,26 +136,61 @@ const tx = async <T>(
   })
 }
 
+const isVault = (v: unknown): v is LinkVault =>
+  typeof v === "object" &&
+  v !== null &&
+  "key" in v &&
+  "id" in v &&
+  v.key instanceof CryptoKey &&
+  v.key.algorithm.name === "AES-GCM" &&
+  typeof v.id === "string" &&
+  /^0x[0-9a-f]{16}$/.test(v.id)
+
 export async function loadVault(owner: Address): Promise<LinkVault | null> {
   try {
-    return (
-      ((await tx("readonly", (s) => s.get(owner))) as LinkVault | undefined) ??
-      null
-    )
+    const stored = await tx("readonly", (s) => s.get(owner))
+    if (stored === undefined || isVault(stored)) return stored ?? null
+    await forgetVault(owner)
+    return null
   } catch {
     return null
   }
 }
+
+// A failed save only costs a prompt on the next visit; the vault still works for this session.
 const saveVault = (owner: Address, vault: LinkVault) =>
-  tx("readwrite", (s) => s.put(vault, owner))
+  tx("readwrite", (s) => s.put(vault, owner)).catch(() => {})
+
+export const forgetVault = (owner: Address) =>
+  tx("readwrite", (s) => s.delete(owner)).catch(() => {})
+
+// Creating a passkey on an authenticator without PRF would leave an unusable passkey behind, so check first.
+export async function passkeysSupported(): Promise<boolean> {
+  if (typeof PublicKeyCredential === "undefined" || !window.isSecureContext)
+    return false
+  try {
+    const capabilities = await PublicKeyCredential.getClientCapabilities?.()
+    return capabilities?.["extension:prf"] !== false
+  } catch {
+    return true
+  }
+}
 
 const friendly = (e: unknown) => {
   if (isMeraError(e) && e.code === "PRF_UNAVAILABLE")
     return new Error(
-      "This browser's passkeys can't protect links yet. Try Chrome or Safari with a synced passkey."
+      "This passkey can't protect links. Try Chrome or Safari with a synced passkey."
     )
-  if (isMeraError(e) && e.code === "PASSKEY_OPERATION_FAILED")
-    return new Error("Passkey request was cancelled.")
+  if (isMeraError(e) && e.code === "PASSKEY_OPERATION_FAILED") {
+    const cause = e.cause instanceof DOMException ? e.cause.name : null
+    if (cause === "NotAllowedError")
+      return new Error("Passkey request was cancelled or timed out.")
+    if (cause === "SecurityError")
+      return new Error("Passkeys don't work on this address.")
+    if (!globalThis.navigator?.credentials)
+      return new Error("This browser doesn't support passkeys.")
+    return new Error("Passkey request failed. Try again.")
+  }
   return e instanceof Error ? e : new Error("Passkey request failed.")
 }
 
@@ -139,24 +198,30 @@ export async function createVault(
   owner: Address,
   label: string
 ): Promise<LinkVault> {
+  let vault: LinkVault
   try {
     const { prfOutput } = await createPasskeyWithPrfOutput({
       rp: { id: location.hostname, name: "Pippo" },
-      user: { name: label, displayName: "Pippo cheque links" },
+      // The date tells passkeys apart in the browser's picker if a lost one is ever replaced.
+      user: {
+        name: `${label} · ${new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`,
+        displayName: "Pippo cheque links",
+      },
       prfSalt: await prfSalt(),
     })
-    const vault = await deriveVault(prfOutput)
-    await saveVault(owner, vault)
-    return vault
+    vault = await deriveVault(prfOutput)
   } catch (e) {
     throw friendly(e)
   }
+  await saveVault(owner, vault)
+  return vault
 }
 
-// `expectedId` comes from an existing sealed link: a different passkey derives a different id and is refused.
+// `knownIds` are the ids sealed into the cheque book. Any of them is accepted, since each cheque opens only with
+// the passkey that sealed it; a passkey matching none of them belongs to someone or something else.
 export async function unlockVault(
   owner: Address,
-  expectedId: Hex | null
+  knownIds: Hex[]
 ): Promise<LinkVault> {
   let vault: LinkVault
   try {
@@ -168,7 +233,7 @@ export async function unlockVault(
   } catch (e) {
     throw friendly(e)
   }
-  if (expectedId && vault.id !== expectedId)
+  if (knownIds.length > 0 && !knownIds.includes(vault.id))
     throw new Error(
       "That passkey didn't lock these links. Choose the passkey you used to write them."
     )

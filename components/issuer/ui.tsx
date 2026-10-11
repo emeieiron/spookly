@@ -2,7 +2,8 @@
 
 import { ViewTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, ChevronRight } from "lucide-react"
+import { ChevronRight } from "lucide-react"
+import { BackTitle } from "@/components/back-title"
 import { describe, type Cheque } from "@/lib/cheque-book"
 import { formatUsdc } from "@/lib/money"
 import { useIssuer } from "./app"
@@ -23,15 +24,7 @@ export function Page({ children }: { children: React.ReactNode }) {
 
 export function PageTitle({ title }: { title: string }) {
   const { goBack } = useIssuer()
-  return (
-    <button
-      onClick={goBack}
-      className="-my-2 flex h-9 shrink-0 items-center gap-2 self-start text-lg font-semibold"
-    >
-      <ArrowLeft className="size-5" />
-      {title}
-    </button>
-  )
+  return <BackTitle title={title} onBack={goBack} />
 }
 
 export function ErrorLine() {

@@ -14,7 +14,8 @@
     "contracts:test": "node scripts/forge.mjs test",
     "contracts:deploy": "node --env-file=.env.local scripts/deploy.mjs",
     "smoke": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/smoke.ts",
-    "dev:fork": "node scripts/dev-bundler.mjs"
+    "dev:fork": "node scripts/dev-bundler.mjs",
+    "test": "node --import tsx --test lib/*.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

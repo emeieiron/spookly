@@ -14,6 +14,8 @@ import { Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ExternalLink } from "@/components/external-link"
+import { NetworkSelect } from "@/components/network-select"
 import {
   FORWARD_HOOK,
   STANDARD_FINALITY,
@@ -255,24 +257,16 @@ function SendForm({
             </li>
           ))}
         </ol>
-        <div className="flex gap-4 text-xs">
-          <a
-            className="underline"
-            target="_blank"
-            rel="noreferrer"
-            href={`${EXPLORER}/tx/${sent.hash}`}
-          >
+        <div className="flex gap-4">
+          <ExternalLink href={`${EXPLORER}/tx/${sent.hash}`}>
             View on Monad
-          </a>
+          </ExternalLink>
           {sent.forwardTxHash && (
-            <a
-              className="underline"
-              target="_blank"
-              rel="noreferrer"
+            <ExternalLink
               href={`${sent.network.explorer}/tx/${sent.forwardTxHash}`}
             >
               View on {sent.network.name}
-            </a>
+            </ExternalLink>
           )}
         </div>
         <Button variant="outline" className="w-full" onClick={onDone}>
@@ -285,7 +279,7 @@ function SendForm({
   return (
     <section className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between border-b pb-2">
-        <label className="flex cursor-text items-baseline gap-2">
+        <Label className="cursor-text items-baseline tracking-normal normal-case select-auto">
           <span className="text-4xl font-semibold text-muted-foreground">
             $
           </span>
@@ -297,7 +291,7 @@ function SendForm({
             onChange={(e) => setAmountText(e.target.value)}
             className="field-sizing-content h-14 w-auto! min-w-[2ch] border-0 px-0 text-4xl font-semibold tabular-nums shadow-none focus-visible:ring-0 md:text-4xl"
           />
-        </label>
+        </Label>
         <Button
           size="xs"
           variant="outline"
@@ -323,21 +317,14 @@ function SendForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="send-network">Network</Label>
-        <select
+        <NetworkSelect
           id="send-network"
           value={chainId}
-          onChange={(e) => {
+          onChange={(id) => {
             setError(null)
-            setChainId(Number(e.target.value))
+            setChainId(id)
           }}
-          className="h-10 border border-input bg-transparent px-3 text-base sm:text-sm"
-        >
-          {NETWORKS.map((n) => (
-            <option key={n.chainId} value={n.chainId}>
-              {n.name}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       <dl className="grid grid-cols-[1fr_auto] gap-y-1 text-sm">

@@ -20,11 +20,19 @@ import { usePathname, useRouter } from "next/navigation"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { Check, Copy, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { readBook, type Book } from "@/lib/cheque-book"
+import {
+  forgetSealedKeys,
+  isLive,
+  readBook,
+  readLinks,
+  type Book,
+  type Links,
+} from "@/lib/cheque-book"
 import {
   createVault,
+  forgetVault,
   loadVault,
-  sealedKeyId,
+  passkeysSupported,
   unlockVault,
   type LinkVault,
 } from "@/lib/link-vault"
@@ -58,6 +66,13 @@ type Issuer = {
   setCopied: (signer: Address | null) => void
   // Passkey-derived key that seals cheque links on-chain; null until set up or unlocked on this device.
   vault: LinkVault | null
+  // Null until this device's passkey support is known.
+  passkeys: boolean | null
+  links: Links | null
+  // False while links are being restored for the current cheques and vault.
+  linksReady: boolean
+  // Set after an unlock fails, so a lost passkey can be replaced.
+  unlockFailed: boolean
   setUpVault: () => Promise<LinkVault | null>
   unlockVault: () => Promise<LinkVault | null>
 }
@@ -104,6 +119,13 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState<Address | null>(null)
   const [vault, setVault] = useState<LinkVault | null>(null)
+  // The account whose stored vault has been read, so links aren't judged locked before the vault loads.
+  const [vaultFor, setVaultFor] = useState<Address | null>(null)
+  const [passkeys, setPasskeys] = useState<boolean | null>(null)
+  const [links, setLinks] = useState<
+    (Links & { owner: Address; sig: string }) | null
+  >(null)
+  const [unlockFailed, setUnlockFailed] = useState(false)
 
   const load = useCallback(
     async (account: Address, client: SignerClient) =>
@@ -186,18 +208,49 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!vaultOwner) return
     let live = true
-    loadVault(vaultOwner).then((v) => live && setVault(v))
+    loadVault(vaultOwner).then((v) => {
+      if (!live) return
+      setVault(v)
+      setVaultFor(vaultOwner)
+    })
     return () => {
       live = false
     }
   }, [vaultOwner])
 
-  const withVault = async (label: string, open: () => Promise<LinkVault>) => {
-    setBusy(label)
+  useEffect(() => {
+    passkeysSupported().then(setPasskeys)
+  }, [])
+
+  // Restores every live link the vault can open whenever the cheques, their seals or the vault change.
+  const book = wallet?.book
+  const linksSig =
+    book && vaultFor === wallet.account
+      ? `${vault?.id}|${book.cheques.map((c) => `${c.signer}${c.sealedKey}${isLive(c, wallet.checkedAt)}`).join()}`
+      : ""
+  useEffect(() => {
+    if (!linksSig || !wallet?.book) return
+    const owner = wallet.account
+    let live = true
+    readLinks(
+      wallet.account,
+      wallet.book.cheques,
+      vault,
+      wallet.checkedAt
+    ).then((l) => live && setLinks({ ...l, owner, sig: linksSig }))
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the signature covers every input that matters
+  }, [linksSig])
+
+  const withVault = async (open: () => Promise<LinkVault>) => {
+    setBusy("vault")
     setError(null)
     try {
       const v = await open()
       setVault(v)
+      setUnlockFailed(false)
       return v
     } catch (e) {
       setError(errorMessage(e))
@@ -207,21 +260,36 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     }
   }
   const setUpVault = () =>
-    withVault("vault", () =>
+    withVault(() =>
       createVault(
         wallet!.account,
         user?.email?.address ?? user?.google?.email ?? wallet!.account
       )
     )
+  // Locked links decide which passkey is wanted; with none locked, any passkey already used by this book will do.
   const unlock = () =>
-    withVault("vault", () => {
-      const sealed = wallet?.book?.cheques.find(
-        (c) => c.sealedKey !== "0x"
-      )?.sealedKey
-      return unlockVault(wallet!.account, sealed ? sealedKeyId(sealed) : null)
+    withVault(async () => {
+      const locked = links?.locked.map((l) => l.id) ?? []
+      try {
+        return await unlockVault(
+          wallet!.account,
+          locked.length > 0 ? locked : (links?.ids ?? [])
+        )
+      } catch (e) {
+        setUnlockFailed(true)
+        throw e
+      }
     })
 
   const signOut = async () => {
+    if (wallet) {
+      await forgetVault(wallet.account)
+      forgetSealedKeys(wallet.account, wallet.book?.cheques ?? [])
+    }
+    setVault(null)
+    setVaultFor(null)
+    setLinks(null)
+    setUnlockFailed(false)
     await logout()
     setWallet(null)
     router.replace("/app")
@@ -245,6 +313,11 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
         copied,
         setCopied,
         vault,
+        passkeys,
+        // Stale links stay visible while new ones restore, but never another account's.
+        links: links?.owner === wallet?.account ? links : null,
+        linksReady: !!linksSig && links?.sig === linksSig,
+        unlockFailed,
         setUpVault,
         unlockVault: unlock,
       }}
@@ -338,8 +411,10 @@ export function AppFrame({
 function CopyAddress({ account }: { account: Address }) {
   const [copied, setCopied] = useState(false)
   return (
-    <button
-      className="flex h-9 items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-foreground"
+    <Button
+      variant="ghost"
+      size="sm"
+      className="px-2 font-mono tracking-normal text-muted-foreground normal-case"
       aria-label="Copy wallet address"
       title="Copy wallet address"
       onClick={() =>
@@ -350,7 +425,7 @@ function CopyAddress({ account }: { account: Address }) {
       }
     >
       {shortAddress(account)}
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-    </button>
+      {copied ? <Check /> : <Copy />}
+    </Button>
   )
 }

@@ -1,50 +1,38 @@
 "use client"
 
-import { encodeFunctionData, getAddress, isAddress, type Hex } from "viem"
-import { ViewTransition, useEffect, useState } from "react"
+import { encodeFunctionData, getAddress, isAddress } from "viem"
+import { ViewTransition, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Check, Copy, KeyRound, Loader2, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { QrCode } from "@/components/qr-code"
 import { chequeBookAbi } from "@/lib/abi"
-import { describe, keyStorage, storedKey } from "@/lib/cheque-book"
+import { describe, storedKey } from "@/lib/cheque-book"
 import { chequeLink } from "@/lib/cheque-link"
 import { formatUsdc } from "@/lib/money"
-import { openChequeKey } from "@/lib/link-vault"
 import { sendChecked } from "@/lib/wallet-send"
 import { useIssuer } from "./app"
 import { Bar, ErrorLine, Page, PageTitle } from "./ui"
 
 export function ChequeDetail({ id }: { id: string }) {
-  const { wallet, busy, run, copied, setCopied, vault, unlockVault } =
-    useIssuer()
+  const {
+    wallet,
+    busy,
+    run,
+    copied,
+    setCopied,
+    links,
+    linksReady,
+    unlockVault,
+  } = useIssuer()
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
   const [justCopied, setJustCopied] = useState(false)
-  const [restored, setRestored] = useState<Hex | null>(null)
-  const [mismatch, setMismatch] = useState(false)
 
   const signer = isAddress(id) ? getAddress(id) : null
   const cheque = wallet?.book?.cheques.find((c) => c.signer === signer)
-  const sealed = cheque && cheque.sealedKey !== "0x" ? cheque.sealedKey : null
   const localKey =
     wallet && cheque ? storedKey(wallet.account, cheque.signer) : null
-
-  // A link written on another device is restored from its on-chain sealed copy with this device's passkey key.
-  useEffect(() => {
-    if (localKey || !sealed || !vault || !wallet || !cheque) return
-    let live = true
-    openChequeKey(vault, sealed).then((key) => {
-      if (!live) return
-      setMismatch(!key)
-      if (!key) return
-      localStorage.setItem(keyStorage(wallet.account, cheque.signer), key)
-      setRestored(key)
-    })
-    return () => {
-      live = false
-    }
-  }, [localKey, sealed, vault, wallet, cheque])
 
   if (!wallet)
     return (
@@ -69,7 +57,10 @@ export function ChequeDetail({ id }: { id: string }) {
 
   const book = wallet.book
   const { live, status } = describe(cheque, wallet.checkedAt)
-  const key = live ? (localKey ?? restored) : null
+  // Links written elsewhere are restored from their sealed copies by the app, with this device's passkey vault.
+  const key = live ? (localKey ?? links?.keys[cheque.signer] ?? null) : null
+  const locked =
+    live && !key && !!links?.locked.some((l) => l.signer === cheque.signer)
   const link = key
     ? chequeLink(window.location.origin, book.address, key)
     : null
@@ -144,13 +135,14 @@ export function ChequeDetail({ id }: { id: string }) {
               Anyone with this link can spend it.
             </p>
           </>
-        ) : live && sealed && (!vault || mismatch) ? (
+        ) : live && !linksReady ? (
+          <Bar className="aspect-square w-56" />
+        ) : locked ? (
           <div className="flex w-full flex-col items-center gap-3 border border-dashed p-6 text-center">
             <KeyRound className="size-6 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
-              {mismatch
-                ? "This link was locked with a different passkey. Unlock it with that one."
-                : "This link is locked to your passkey. Unlock it to show the QR code on this device."}
+              This link is locked to your passkey. Unlock it to show the QR code
+              on this device.
             </p>
             <Button
               className="w-full"
@@ -163,9 +155,10 @@ export function ChequeDetail({ id }: { id: string }) {
                 "Unlock with passkey"
               )}
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Lost the passkey? Cancelling the cheque returns its money.
+            </p>
           </div>
-        ) : live && sealed ? (
-          <Bar className="aspect-square w-56" />
         ) : live ? (
           <p className="text-center text-sm text-muted-foreground">
             This cheque&apos;s link is saved on the device that wrote it.
