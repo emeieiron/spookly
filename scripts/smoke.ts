@@ -1,6 +1,7 @@
-// End-to-end check on Monad testnet: write a cheque, pay 0.5 USDC to Base Sepolia from it through the bundler,
-// and wait for Circle's Forwarding Service to deliver. Needs DEPLOYER_PRIVATE_KEY with MON and >= 0.65 USDC,
-// plus ALCHEMY_API_KEY (or BUNDLER_RPC_URL). Optional RECIPIENT on Base Sepolia (defaults to the issuer).
+// End-to-end check in the configured environment: write a cheque and pay 0.5 USDC to Base
+// through the bundler, then wait for Circle forwarding. Mainnet requires --broadcast.
+// Needs DEPLOYER_PRIVATE_KEY with MON/USDC and BUNDLER_RPC_URL (or testnet ALCHEMY_API_KEY).
+// Optional RECIPIENT on the selected Base network defaults to the issuer.
 import {
   createPublicClient,
   createWalletClient,
@@ -12,11 +13,11 @@ import {
   type Hex,
 } from "viem"
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
-import { baseSepolia } from "viem/chains"
+import { base as baseMainnet, baseSepolia } from "viem/chains"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { chequeBookAbi, factoryAbi } from "../lib/abi"
 import { deliveryStatus } from "../lib/cctp"
-import { FACTORY, erc20Abi, monadTestnet } from "../lib/chain"
+import { FACTORY, IS_MAINNET, erc20Abi, monad } from "../lib/chain"
 import {
   planPayment,
   publicClient,
@@ -26,10 +27,13 @@ import {
 import { networkByChainId } from "../lib/networks"
 import { NO_PERMIT, signPermit } from "../lib/permit"
 
-const bundlerUrl =
-  process.env.BUNDLER_RPC_URL ??
-  (process.env.ALCHEMY_API_KEY &&
-    `https://monad-testnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`)
+import { bundlerEndpoint } from "../config/network.mjs"
+if (IS_MAINNET && !process.argv.includes("--broadcast"))
+  throw new Error(
+    "Mainnet smoke spends real funds. Pass --broadcast explicitly."
+  )
+const bundlerUrl = bundlerEndpoint()
+const baseChain = IS_MAINNET ? baseMainnet : baseSepolia
 if (!process.env.DEPLOYER_PRIVATE_KEY || !bundlerUrl || !FACTORY)
   throw new Error(
     "Set DEPLOYER_PRIVATE_KEY and ALCHEMY_API_KEY, and run pnpm contracts:deploy first."
@@ -38,16 +42,18 @@ if (!process.env.DEPLOYER_PRIVATE_KEY || !bundlerUrl || !FACTORY)
 const issuer = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY as Hex)
 const wallet = createWalletClient({
   account: issuer,
-  chain: monadTestnet,
+  chain: monad,
   transport: http(),
 })
-const base = createPublicClient({ chain: baseSepolia, transport: http() })
-const network = networkByChainId(baseSepolia.id)!
+if ((await publicClient.getChainId()) !== monad.id)
+  throw new Error("RPC chain mismatch")
+const base = createPublicClient({ chain: baseChain, transport: http() })
+const network = networkByChainId(baseChain.id)!
 const recipient = getAddress(process.env.RECIPIENT ?? issuer.address)
 const AMOUNT = 500_000n
 const CHEQUE = 650_000n
 const FEE_ALLOWANCE = parseEther("0.4")
-const KEY_FILE = ".smoke-cheque.json"
+const KEY_FILE = `.smoke-cheque-${monad.id}.json`
 
 async function send(label: string, hash: Promise<Hex>) {
   const receipt = await publicClient.waitForTransactionReceipt({
@@ -137,7 +143,7 @@ const before = await base.readContract({
 })
 const plan = await planPayment(book, signer, network, recipient, AMOUNT)
 console.log(
-  `paying ${AMOUNT} to ${recipient} on Base Sepolia, forwarding fee ${plan.fee}`
+  `paying ${AMOUNT} to ${recipient} on ${baseChain.name}, forwarding fee ${plan.fee}`
 )
 const sent = await sendPayment(book, key, plan, bundlerUrl)
 console.log("userOp", sent.userOpHash)
@@ -156,7 +162,11 @@ for (;;) {
     const receipt = await base.waitForTransactionReceipt({
       hash: delivery.forwardTxHash as Hex,
     })
-    console.log("mint on Base Sepolia", receipt.status, receipt.transactionHash)
+    console.log(
+      `mint on ${baseChain.name}`,
+      receipt.status,
+      receipt.transactionHash
+    )
     break
   }
   if (Date.now() > deadline) throw new Error("Timed out waiting for delivery")
@@ -168,6 +178,6 @@ const after = await base.readContract({
   functionName: "balanceOf",
   args: [recipient],
 })
-console.log(`Base Sepolia USDC received: ${after - before}`)
+console.log(`${baseChain.name} USDC received: ${after - before}`)
 if (after - before < AMOUNT)
   throw new Error("Recipient received less than the requested amount")

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { QrScanner } from "@/components/qr-scanner"
 import { deliveryStatus, forwardingFee, type Delivery } from "@/lib/cctp"
 import { readChequeFragment } from "@/lib/cheque-link"
+import { EXPLORER, monad } from "@/lib/chain"
 import {
   errorMessage,
   planPayment,
@@ -46,7 +47,7 @@ type Stage =
   | { kind: "confirm"; request: Partial<PaymentRequest> }
   | { kind: "payment"; pending: Pending }
 
-const pendingKey = (signer: Address) => `pippo:pending:${signer}`
+const pendingKey = (signer: Address) => `pippo:pending:${monad.id}:${signer}`
 const savePending = (signer: Address, pending: Pending | null) => {
   try {
     if (pending)
@@ -531,9 +532,7 @@ function PaymentProgress({
       {error && <p className="text-sm break-words text-destructive">{error}</p>}
       <div className="flex flex-col items-start gap-1">
         {pending.transactionHash && (
-          <ExternalLink
-            href={`https://testnet.monadexplorer.com/tx/${pending.transactionHash}`}
-          >
+          <ExternalLink href={`${EXPLORER}/tx/${pending.transactionHash}`}>
             View payment
           </ExternalLink>
         )}

@@ -1,14 +1,14 @@
 import { indexer } from "envio"
 import {
   DOMAIN_BY_CHAIN,
+  MONAD_TOKEN_MESSENGER,
+  STATS_ID,
   MONAD_DOMAIN,
   eventId,
   matchKey,
   parseBurnMessage,
   toAddress,
 } from "../matching.js"
-
-const MONAD_TOKEN_MESSENGER = "0x8fe6b999dc680ccfdd5bf7eb0974218be2542daa"
 
 // The mint on the payee's network. If its burn was indexed first, that payment is marked delivered here.
 indexer.onEvent(
@@ -30,7 +30,7 @@ indexer.onEvent(
     const paymentId = match?.burns[0]
     const [payment, stats] = await Promise.all([
       paymentId ? context.Payment.get(paymentId) : undefined,
-      paymentId ? context.Stats.get("global") : undefined,
+      paymentId ? context.Stats.get(STATS_ID) : undefined,
     ])
     const id = eventId(event.chainId, event.transaction.hash, event.logIndex)
     const timestamp = BigInt(event.block.timestamp)

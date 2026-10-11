@@ -1,5 +1,6 @@
 import { isHex, parseEther, type Address, type Hex } from "viem"
 import { privateKeyToAddress } from "viem/accounts"
+import { monad, IS_MAINNET } from "./chain"
 import { chequeBookAbi, factoryAbi } from "./abi"
 import { publicClient } from "./cheque-payment"
 import { openChequeKey, sealedKeyId, type LinkVault } from "./link-vault"
@@ -26,7 +27,9 @@ export type Book = {
 }
 
 export const keyStorage = (owner: Address, signer: Address) =>
-  `pippo:cheque:${owner}:${signer}`
+  IS_MAINNET
+    ? `pippo:cheque:${monad.id}:${owner}:${signer}`
+    : `pippo:cheque:${owner}:${signer}`
 // A stored key counts only if it still controls the cheque's signer.
 export const storedKey = (owner: Address, signer: Address): Hex | null => {
   try {

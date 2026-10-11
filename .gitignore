@@ -44,3 +44,6 @@ next-env.d.ts
 !.env.example
 /.claude/
 /.smoke-cheque.json
+
+/.smoke-cheque-*.json
+/indexer/config.generated.*.yaml

@@ -1,3 +1,4 @@
+import { monad } from "@/lib/chain"
 import QRCode from "qrcode"
 import { ArrowLeft, Clock, Link2 } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
@@ -10,7 +11,7 @@ const qr = (text: string) =>
 export async function ProductMock() {
   const [link, payment] = await Promise.all([
     qr("PIPPO SPENDABLE LINK (demo)"),
-    qr("ethereum:0x0000000000000000000000000000000000000000@10143"),
+    qr(`ethereum:0x0000000000000000000000000000000000000000@${monad.id}`),
   ])
   return (
     <div

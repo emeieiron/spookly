@@ -1,3 +1,4 @@
+import { appNetwork } from "../config/network.mjs"
 import { spawnSync } from "node:child_process"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 
@@ -7,12 +8,14 @@ const forge =
 const command = process.argv[2] ?? "build"
 const args = ["--root", "contracts"]
 if (command === "test")
-  args.push(
-    "--fork-url",
-    process.env.MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz"
-  )
+  args.push("--fork-url", process.env.MONAD_RPC_URL ?? appNetwork.rpc)
 const result = spawnSync(forge, [command, ...args, ...process.argv.slice(3)], {
   stdio: "inherit",
+  env: {
+    ...process.env,
+    PIPPO_USDC: appNetwork.payouts[0].usdc,
+    PIPPO_TOKEN_MESSENGER: appNetwork.tokenMessenger,
+  },
 })
 if (result.status !== 0) process.exit(result.status ?? 1)
 

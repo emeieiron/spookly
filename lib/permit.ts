@@ -7,12 +7,19 @@ import {
   type Transport,
   type WalletClient,
 } from "viem"
-import { USDC, monadTestnet } from "./chain"
+import { USDC, monad } from "./chain"
 import { publicClient } from "./cheque-payment"
 
 export const NO_PERMIT = { deadline: 0n, v: 0, r: zeroHash, s: zeroHash }
 
 const noncesAbi = [
+  {
+    type: "function",
+    name: "name",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
   {
     type: "function",
     name: "nonces",
@@ -29,18 +36,25 @@ export async function signPermit(
   value: bigint
 ) {
   const owner = client.account.address
-  const nonce = await publicClient.readContract({
-    address: USDC,
-    abi: noncesAbi,
-    functionName: "nonces",
-    args: [owner],
-  })
+  const [nonce, name] = await Promise.all([
+    publicClient.readContract({
+      address: USDC,
+      abi: noncesAbi,
+      functionName: "nonces",
+      args: [owner],
+    }),
+    publicClient.readContract({
+      address: USDC,
+      abi: noncesAbi,
+      functionName: "name",
+    }),
+  ])
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
   const signature = await client.signTypedData({
     domain: {
-      name: "USDC",
+      name,
       version: "2",
-      chainId: monadTestnet.id,
+      chainId: monad.id,
       verifyingContract: USDC,
     },
     types: {

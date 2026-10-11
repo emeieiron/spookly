@@ -1,3 +1,4 @@
+import { monad } from "./chain"
 import type { Address, Hash } from "viem"
 
 // Envio indexer (HyperIndex) GraphQL endpoint. Optional: without it, payment history and live stats stay hidden.
@@ -31,6 +32,13 @@ async function query<T>(
   variables: Record<string, unknown> = {}
 ): Promise<T | null> {
   if (!ENDPOINT) return null
+  // An old endpoint must not show another environment's payment history or totals.
+  if (!document.includes("Stats(")) {
+    const profile = await query<{ Stats: { id: string }[] }>(
+      `{ Stats(where: { id: { _eq: "global-${monad.id}" } }) { id } }`
+    )
+    if (!profile?.Stats.length) return null
+  }
   try {
     const response = await fetch(ENDPOINT, {
       method: "POST",
@@ -91,7 +99,7 @@ export async function activityStats(): Promise<ActivityStats | null> {
       delivered: number
     }[]
   }>(
-    `{ Stats(where: { id: { _eq: "global" } }) {
+    `{ Stats(where: { id: { _eq: "global-${monad.id}" } }) {
       cheques written payments paidOut crossChainPayments delivered
     } }`
   )

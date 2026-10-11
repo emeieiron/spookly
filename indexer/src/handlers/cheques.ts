@@ -1,6 +1,7 @@
 import { indexer } from "envio"
 import {
   CHAIN_BY_DOMAIN,
+  STATS_ID,
   MONAD_CHAIN,
   MONAD_DOMAIN,
   eventId,
@@ -9,7 +10,7 @@ import {
 } from "../matching.js"
 
 const STATS = {
-  id: "global",
+  id: STATS_ID,
   books: 0,
   cheques: 0,
   written: 0n,

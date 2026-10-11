@@ -17,7 +17,8 @@ export async function sendChecked(
   client: SignerClient,
   to: Address,
   data: Hex,
-  value = 0n
+  value = 0n,
+  onSubmitted?: (hash: Hash) => void
 ): Promise<Hash> {
   const from = client.account.address
   const [gas, fees, balance] = await Promise.all([
@@ -48,6 +49,7 @@ export async function sendChecked(
     maxFeePerGas: fees.maxFeePerGas,
     maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
   })
+  onSubmitted?.(hash)
   const receipt = await publicClient.waitForTransactionReceipt({ hash })
   if (receipt.status !== "success") throw new Error("The transaction failed.")
   return hash

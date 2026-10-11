@@ -20,11 +20,11 @@ import {
 } from "viem/account-abstraction"
 import { chequeBookAbi } from "./abi"
 import { forwardingFee } from "./cctp"
-import { ENTRY_POINT, monadTestnet } from "./chain"
+import { ENTRY_POINT, monad } from "./chain"
 import { isLocal, type Network } from "./networks"
 
 export const publicClient = createPublicClient({
-  chain: monadTestnet,
+  chain: monad,
   transport: http(),
 })
 
@@ -121,7 +121,7 @@ function chequeAccount(book: Address, key: Hex) {
     },
     getStubSignature: async () =>
       signer.signMessage({ message: { raw: zeroHash } }),
-    signUserOperation: async ({ chainId = monadTestnet.id, ...operation }) =>
+    signUserOperation: async ({ chainId = monad.id, ...operation }) =>
       signer.signMessage({
         message: {
           raw: getUserOperationHash({
@@ -192,7 +192,7 @@ export async function sendPayment(
   const bundler = createBundlerClient({
     account,
     client: publicClient,
-    chain: monadTestnet,
+    chain: monad,
     transport: http(bundlerUrl, { retryCount: 0 }),
     userOperation: {
       estimateFeesPerGas: async ({ bundlerClient }) =>

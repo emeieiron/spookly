@@ -8,7 +8,7 @@ import {
   chequePayments,
   type ChequePayment,
 } from "@/lib/activity"
-import { EXPLORER, monadTestnet } from "@/lib/chain"
+import { EXPLORER, monad } from "@/lib/chain"
 import { formatUsdc, shortAddress } from "@/lib/money"
 import { networkByChainId } from "@/lib/networks"
 
@@ -62,7 +62,7 @@ export function ChequePayments({
 function PaymentRow({ payment: p }: { payment: ChequePayment }) {
   const network = networkByChainId(p.chainId)
   const delivered = p.status === "delivered"
-  const crossChain = p.chainId !== monadTestnet.id
+  const crossChain = p.chainId !== monad.id
   // Link to where the money landed once it has, otherwise to the payment on Monad.
   const href =
     delivered && crossChain && p.deliveryTxHash && network

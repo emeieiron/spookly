@@ -3,7 +3,8 @@
 import { PrivyProvider } from "@privy-io/react-auth"
 import { useEffect, useState } from "react"
 import { AppFrame } from "@/components/issuer/app"
-import { monadTestnet } from "@/lib/chain"
+import { monad } from "@/lib/chain"
+import { WALLET_CHAINS } from "@/lib/funding/chains"
 
 type LoginMethod = "email" | "google" | "wallet"
 
@@ -33,7 +34,7 @@ export function Privy({ children }: { children: React.ReactNode }) {
   if (!appId)
     return (
       <p className="p-6 text-sm text-destructive">
-        Sign-in isn&apos;t configured. Set NEXT_PUBLIC_PRIVY_APP_ID.
+        Sign-in is unavailable right now.
       </p>
     )
   if (!loginMethods) return <AppFrame />
@@ -42,8 +43,8 @@ export function Privy({ children }: { children: React.ReactNode }) {
       appId={appId}
       config={{
         loginMethods,
-        defaultChain: monadTestnet,
-        supportedChains: [monadTestnet],
+        defaultChain: monad,
+        supportedChains: WALLET_CHAINS,
         embeddedWallets: {
           ethereum: { createOnLogin: "users-without-wallets" },
           // The app's own buttons are the confirmation; Privy's extra approval screens only add steps.

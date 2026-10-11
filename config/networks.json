@@ -1,0 +1,164 @@
+{
+  "mainnet": {
+    "name": "mainnet",
+    "chainId": 143,
+    "chainName": "Monad",
+    "rpc": "https://rpc.monad.xyz",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "messageTransmitter": "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64",
+    "iris": "https://iris-api.circle.com",
+    "payouts": [
+      {
+        "chainId": 143,
+        "name": "Monad",
+        "explorer": "https://monadscan.com",
+        "domain": 15,
+        "usdc": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603"
+      },
+      {
+        "chainId": 8453,
+        "name": "Base",
+        "domain": 6,
+        "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "explorer": "https://basescan.org"
+      },
+      {
+        "chainId": 42161,
+        "name": "Arbitrum",
+        "domain": 3,
+        "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        "explorer": "https://arbiscan.io"
+      },
+      {
+        "chainId": 10,
+        "name": "Optimism",
+        "domain": 2,
+        "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+        "explorer": "https://optimistic.etherscan.io"
+      },
+      {
+        "chainId": 137,
+        "name": "Polygon",
+        "domain": 7,
+        "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        "explorer": "https://polygonscan.com"
+      },
+      {
+        "chainId": 43114,
+        "name": "Avalanche",
+        "domain": 1,
+        "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        "explorer": "https://snowtrace.io"
+      },
+      {
+        "chainId": 130,
+        "name": "Unichain",
+        "domain": 10,
+        "usdc": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "explorer": "https://uniscan.xyz"
+      },
+      {
+        "chainId": 59144,
+        "name": "Linea",
+        "domain": 11,
+        "usdc": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+        "explorer": "https://lineascan.build"
+      },
+      {
+        "chainId": 480,
+        "name": "World Chain",
+        "domain": 14,
+        "usdc": "0x79A02482A880bCe3F13E09da970dC34dB4cD24D1",
+        "explorer": "https://worldscan.org"
+      },
+      {
+        "chainId": 1,
+        "name": "Ethereum",
+        "domain": 0,
+        "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "explorer": "https://etherscan.io"
+      }
+    ]
+  },
+  "testnet": {
+    "name": "testnet",
+    "chainId": 10143,
+    "chainName": "Monad Testnet",
+    "rpc": "https://testnet-rpc.monad.xyz",
+    "tokenMessenger": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+    "messageTransmitter": "0xe737e5cebeeba77efe34d4aa090756590b1ce275",
+    "iris": "https://iris-api-sandbox.circle.com",
+    "payouts": [
+      {
+        "chainId": 10143,
+        "name": "Monad",
+        "explorer": "https://testnet.monadexplorer.com",
+        "domain": 15,
+        "usdc": "0x534b2f3A21130d7a60830c2Df862319e593943A3"
+      },
+      {
+        "chainId": 84532,
+        "name": "Base",
+        "domain": 6,
+        "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "explorer": "https://sepolia.basescan.org"
+      },
+      {
+        "chainId": 421614,
+        "name": "Arbitrum",
+        "domain": 3,
+        "usdc": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+        "explorer": "https://sepolia.arbiscan.io"
+      },
+      {
+        "chainId": 11155420,
+        "name": "Optimism",
+        "domain": 2,
+        "usdc": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+        "explorer": "https://sepolia-optimism.etherscan.io"
+      },
+      {
+        "chainId": 80002,
+        "name": "Polygon",
+        "domain": 7,
+        "usdc": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+        "explorer": "https://amoy.polygonscan.com"
+      },
+      {
+        "chainId": 43113,
+        "name": "Avalanche",
+        "domain": 1,
+        "usdc": "0x5425890298aed601595a70AB815c96711a31Bc65",
+        "explorer": "https://testnet.snowtrace.io"
+      },
+      {
+        "chainId": 1301,
+        "name": "Unichain",
+        "domain": 10,
+        "usdc": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
+        "explorer": "https://sepolia.uniscan.xyz"
+      },
+      {
+        "chainId": 59141,
+        "name": "Linea",
+        "domain": 11,
+        "usdc": "0xFEce4462D57bD51A6A552365A011b95f0E16d9B7",
+        "explorer": "https://sepolia.lineascan.build"
+      },
+      {
+        "chainId": 4801,
+        "name": "World Chain",
+        "domain": 14,
+        "usdc": "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88",
+        "explorer": "https://worldchain-sepolia.explorer.alchemy.com"
+      },
+      {
+        "chainId": 11155111,
+        "name": "Ethereum",
+        "domain": 0,
+        "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        "explorer": "https://sepolia.etherscan.io"
+      }
+    ]
+  }
+}

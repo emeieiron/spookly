@@ -10,14 +10,15 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "contracts:build": "node scripts/forge.mjs build",
-    "contracts:test": "node scripts/forge.mjs test",
+    "contracts:build": "node --env-file-if-exists=.env.local scripts/forge.mjs build",
+    "contracts:test": "node --env-file-if-exists=.env.local scripts/forge.mjs test",
     "contracts:deploy": "node --env-file=.env.local scripts/deploy.mjs",
     "smoke": "tsx --env-file=.env.local --tsconfig tsconfig.json scripts/smoke.ts",
     "dev:fork": "node scripts/dev-bundler.mjs",
     "test": "node --import tsx --test lib/*.test.ts",
     "indexer:install": "pnpm --dir indexer install",
-    "indexer:dev": "pnpm --dir indexer dev"
+    "indexer:dev": "node --env-file-if-exists=.env.local scripts/indexer-config.mjs dev",
+    "indexer:codegen": "node --env-file-if-exists=.env.local scripts/indexer-config.mjs codegen"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

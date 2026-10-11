@@ -1,5 +1,6 @@
 // Minimal ERC-4337 bundler for local testing against an anvil fork. Not for production.
 // Usage: MONAD_RPC_URL=http://127.0.0.1:8545 node scripts/dev-bundler.mjs  (then BUNDLER_RPC_URL=http://localhost:4337)
+import { appNetwork } from "../config/network.mjs"
 import { createServer } from "node:http"
 import {
   createPublicClient,
@@ -20,12 +21,14 @@ const rpc = process.env.MONAD_RPC_URL ?? "http://127.0.0.1:8545"
 // Anvil's default dev keys are swept or delegated on the real testnet, and a fork inherits that state.
 const key = process.env.DEV_BUNDLER_KEY ?? generatePrivateKey()
 const chain = defineChain({
-  id: 10143,
+  id: appNetwork.chainId,
   name: "Monad fork",
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
   rpcUrls: { default: { http: [rpc] } },
 })
 const client = createPublicClient({ chain, transport: http() })
+if ((await client.getChainId()) !== chain.id)
+  throw new Error("Fork chain does not match the configured network")
 const wallet = createWalletClient({
   chain,
   account: privateKeyToAccount(key),

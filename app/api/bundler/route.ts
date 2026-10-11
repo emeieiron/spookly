@@ -1,3 +1,4 @@
+import { bundlerEndpoint } from "@/config/network.mjs"
 import {
   createPublicClient,
   decodeFunctionData,
@@ -7,7 +8,7 @@ import {
   type Address,
 } from "viem"
 import { chequeBookAbi, factoryAbi } from "@/lib/abi"
-import { ENTRY_POINT, FACTORY, monadTestnet } from "@/lib/chain"
+import { ENTRY_POINT, FACTORY, monad } from "@/lib/chain"
 
 const METHODS = new Set([
   "eth_supportedEntryPoints",
@@ -19,7 +20,7 @@ const METHODS = new Set([
 ])
 
 const client = createPublicClient({
-  chain: monadTestnet,
+  chain: monad,
   transport: http(process.env.MONAD_RPC_URL),
 })
 const knownBooks = new Set<string>()
@@ -59,11 +60,7 @@ const userMessage = (raw: string) => {
 }
 
 export async function POST(request: Request) {
-  const endpoint =
-    process.env.BUNDLER_RPC_URL ??
-    (process.env.ALCHEMY_API_KEY
-      ? `https://monad-testnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
-      : null)
+  const endpoint = bundlerEndpoint()
   if (!endpoint)
     return Response.json(
       { error: "Bundler is not configured" },

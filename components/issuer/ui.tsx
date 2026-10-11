@@ -9,7 +9,13 @@ import { formatUsdc } from "@/lib/money"
 import { useIssuer } from "./app"
 
 // Forward navigations slide in from the right, back ones from the left; browser back/forward crossfades.
-export function Page({ children }: { children: React.ReactNode }) {
+export function Page({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
   const motion = {
     "nav-forward": "nav-forward",
     "nav-back": "nav-back",
@@ -17,7 +23,9 @@ export function Page({ children }: { children: React.ReactNode }) {
   }
   return (
     <ViewTransition enter={motion} exit={motion} default="none">
-      <div className="flex min-h-0 flex-1 flex-col gap-6">{children}</div>
+      <div className={`flex min-h-0 flex-1 flex-col gap-6 ${className}`}>
+        {children}
+      </div>
     </ViewTransition>
   )
 }

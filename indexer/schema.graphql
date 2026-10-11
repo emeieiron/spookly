@@ -62,7 +62,7 @@ type CrossChainMatch {
 }
 
 type Stats {
-  id: ID! # "global"
+  id: ID! # "global-143" or "global-10143"
   books: Int!
   cheques: Int!
   written: BigInt! # USDC escrowed into cheques

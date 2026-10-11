@@ -1,3 +1,4 @@
+import { IS_MAINNET, monad } from "@/lib/chain"
 import type { Metadata } from "next"
 import Link from "next/link"
 import {
@@ -267,7 +268,7 @@ export default async function Landing() {
               </a>
             </div>
             <span className="font-mono text-xs text-muted-foreground">
-              Sign in with Google or email · testnet only
+              Sign in with Google or email · {IS_MAINNET ? "Monad" : "testnet"}
             </span>
           </div>
           <div className="relative">
@@ -483,7 +484,7 @@ export default async function Landing() {
 
         <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
           <div className="flex flex-col gap-4">
-            <Eyebrow>Cleared on testnet</Eyebrow>
+            <Eyebrow>Verified testnet payment</Eyebrow>
             <h2 className="text-4xl font-semibold tracking-tight sm:text-5xl">
               A link on Monad.
               <br />A payment on Base.
@@ -493,7 +494,7 @@ export default async function Landing() {
               Circle&apos;s Forwarding Service burned it on Monad and minted it
               on Base, while the issuer&apos;s deposit covered every fee.
             </p>
-            {stats && <LiveStats stats={stats} />}
+            {!IS_MAINNET && stats && <LiveStats stats={stats} />}
           </div>
           <div className="flex flex-col gap-5 border bg-card p-6 shadow-xl sm:p-8">
             <span className="text-sm font-semibold tracking-widest uppercase">
@@ -551,7 +552,11 @@ export default async function Landing() {
       <footer className="border-t">
         <div className="mx-auto flex max-w-6xl flex-col justify-between gap-2 px-4 py-6 font-mono text-xs text-muted-foreground sm:flex-row sm:px-6">
           <span>Monad · Circle CCTP · ERC-4337 · Privy · Mera</span>
-          <span>Testnet only. Test USDC has no value.</span>
+          <span>
+            {IS_MAINNET
+              ? "Monad mainnet · USDC"
+              : "Testnet only. Test USDC has no value."}
+          </span>
         </div>
       </footer>
     </div>
@@ -563,7 +568,7 @@ function LiveStats({ stats }: { stats: ActivityStats }) {
     <div className="mt-4 flex flex-col gap-3">
       <span className="flex items-center gap-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
         <span className="size-1.5 animate-pulse bg-emerald-500" />
-        Live on Monad testnet
+        Live on {monad.name}
       </span>
       <dl className="grid grid-cols-3 gap-px border bg-border">
         {[

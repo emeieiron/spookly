@@ -1,7 +1,5 @@
 "use client"
 
-import { encodeFunctionData } from "viem"
-import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { ViewTransition, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -10,16 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { chequeBookAbi, factoryAbi } from "@/lib/abi"
-import { DAYS, FEE_ALLOWANCE, keyStorage } from "@/lib/cheque-book"
-import { FACTORY } from "@/lib/chain"
+import { DAYS } from "@/lib/cheque-book"
+import { FACTORY, IS_MAINNET } from "@/lib/chain"
 import { chequeLink } from "@/lib/cheque-link"
-import { publicClient } from "@/lib/cheque-payment"
 import { formatMon, formatUsdc, parseUsdc } from "@/lib/money"
-import { NO_PERMIT, signPermit } from "@/lib/permit"
-import { sealChequeKey } from "@/lib/link-vault"
-import { sendChecked } from "@/lib/wallet-send"
-import { useIssuer } from "./app"
+import { FundingFlow } from "@/components/funding/flow"
+import { useFundingSession } from "@/components/funding/use-session"
+import { fundingTargets } from "@/lib/funding/requirements"
+import { pendingWriteDraft, writeCheque } from "@/lib/issuer-write"
+import { fetchWallet, useIssuer, type Wallet } from "./app"
 import { Bar, ChequeRow, ErrorLine, Page } from "./ui"
 
 export function Home() {
@@ -27,74 +24,28 @@ export function Home() {
   const router = useRouter()
 
   if (!wallet) return <HomeSkeleton />
-  const { book, account } = wallet
-  const spareGas = book?.spareGas ?? 0n
-  // Active holds every cheque that still holds money or fees; history holds the closed ones.
+  const { book } = wallet
+  // Active holds every cheque that still holds money or fees; history holds closed ones.
   const open = book?.cheques.filter((c) => c.active) ?? []
   const closedCount = (book?.cheques.length ?? 0) - open.length
-
   const write = (amount: bigint, days: number) =>
-    run("write", async ({ client }) => {
-      const key = generatePrivateKey()
-      const signer = privateKeyToAccount(key).address
-      // Keep the key before the transaction so the link is never lost.
-      localStorage.setItem(keyStorage(account, signer), key)
-      const expiry = BigInt(Math.floor(Date.now() / 1000) + days * 86400)
-      const pull = !book
-        ? amount
-        : amount > book.available
-          ? amount - book.available
-          : 0n
-      const topUp = FEE_ALLOWANCE > spareGas ? FEE_ALLOWANCE - spareGas : 0n
-      const permit =
-        pull > 0n
-          ? await signPermit(client, book?.address ?? FACTORY!, pull)
-          : NO_PERMIT
-      // With a passkey vault, the link's key is sealed on-chain so it can be restored on any device.
-      const sealed = vault ? await sealChequeKey(vault, key) : "0x"
-      await sendChecked(
-        client,
-        book?.address ?? FACTORY!,
-        book
-          ? encodeFunctionData({
-              abi: chequeBookAbi,
-              functionName: "fundAndWrite",
-              args: [
-                signer,
-                amount,
-                expiry,
-                FEE_ALLOWANCE,
-                pull,
-                permit,
-                sealed,
-              ],
-            })
-          : encodeFunctionData({
-              abi: factoryAbi,
-              functionName: "createAndWrite",
-              args: [signer, amount, expiry, FEE_ALLOWANCE, permit, sealed],
-            }),
-        topUp
-      )
-      const bookAddress =
-        book?.address ??
-        (await publicClient.readContract({
-          address: FACTORY!,
-          abi: factoryAbi,
-          functionName: "bookOf",
-          args: [account],
-        }))
+    run("write", async ({ account, client }) => {
+      // Read after settlement, so funding never uses a stale wallet or book balance.
+      const current = await fetchWallet(account, client)
+      const result = await writeCheque(current, amount, days, vault)
       const copied = await navigator.clipboard
-        ?.writeText(chequeLink(window.location.origin, bookAddress, key))
+        ?.writeText(
+          chequeLink(window.location.origin, result.bookAddress, result.key)
+        )
         .then(() => true)
         .catch(() => false)
-      setCopied(copied ? signer : null)
-      return signer
+      setCopied(copied ? result.signer : null)
+      return result.signer
     })
 
   return (
-    <Page>
-      <div className="flex h-5 items-center justify-between text-sm text-muted-foreground">
+    <Page className="[scrollbar-width:thin] overflow-y-auto">
+      <div className="flex h-5 shrink-0 items-center justify-between text-sm text-muted-foreground">
         <span>
           Wallet {formatUsdc(wallet.usdc)} · {formatMon(wallet.mon)}
         </span>
@@ -120,7 +71,7 @@ export function Home() {
       <WriteCheque
         busy={busy === "write"}
         disabled={!!busy || !FACTORY}
-        max={wallet.usdc + (book?.available ?? 0n)}
+        wallet={wallet}
         onWrite={async (amount, days) => {
           const signer = await write(amount, days)
           if (signer)
@@ -133,7 +84,7 @@ export function Home() {
       <ErrorLine />
       <VaultStatus />
 
-      <section className="flex min-h-0 flex-1 flex-col">
+      <section className="flex min-h-24 flex-1 flex-col">
         <div className="flex items-center justify-between border-b text-xs font-semibold tracking-widest uppercase">
           <span className="py-3">
             Active{" "}
@@ -239,20 +190,46 @@ function VaultStatus() {
 function WriteCheque({
   busy,
   disabled,
-  max,
+  wallet,
   onWrite,
 }: {
   busy: boolean
   disabled: boolean
-  max: bigint
+  wallet: Wallet
   onWrite: (amount: bigint, days: number) => Promise<boolean>
 }) {
-  const [amountText, setAmountText] = useState("")
-  const [days, setDays] = useState(7)
-  const amount = parseUsdc(amountText)
+  const { session, loaded } = useFundingSession(wallet.account)
+  const [fundingOpen, setFundingOpen] = useState(false)
+  const [amountText, setAmountText] = useState(
+    () => pendingWriteDraft(wallet.account)?.amount ?? ""
+  )
+  const [days, setDays] = useState(
+    () => pendingWriteDraft(wallet.account)?.days ?? 7
+  )
+  const draftAmount =
+    session?.purpose === "write"
+      ? (session.draft?.amount ?? amountText)
+      : amountText
+  const draftDays =
+    session?.purpose === "write" ? (session.draft?.days ?? days) : days
+  const amount = parseUsdc(draftAmount)
+  const max = wallet.usdc + (wallet.book?.available ?? 0n)
+  const targets = amount
+    ? fundingTargets(
+        amount,
+        wallet.usdc,
+        wallet.mon,
+        wallet.book?.available,
+        wallet.book?.spareGas,
+        wallet.gasReserve
+      )
+    : []
+  const shortfall = targets.length > 0
+  const showFunding = IS_MAINNET && (!!session || (shortfall && fundingOpen))
+  const pending = !!session
   const tooMuch = amount !== null && amount > max
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex shrink-0 flex-col gap-4">
       <Label className="cursor-text border-b pb-2 tracking-normal normal-case select-auto">
         <ViewTransition name="cheque-amount" share="morph" default="none">
           <span className="inline-flex items-baseline gap-2">
@@ -263,7 +240,8 @@ function WriteCheque({
               aria-label="Cheque amount in USDC"
               inputMode="decimal"
               placeholder="0.00"
-              value={amountText}
+              disabled={pending || busy}
+              value={draftAmount}
               onChange={(e) => setAmountText(e.target.value)}
               className="field-sizing-content h-14 w-auto! min-w-[2ch] border-0 px-0 text-4xl font-semibold tabular-nums shadow-none focus-visible:ring-0 md:text-4xl"
             />
@@ -271,10 +249,11 @@ function WriteCheque({
         </ViewTransition>
       </Label>
       <ToggleGroup
+        disabled={pending || busy}
         aria-label="Valid for"
         variant="outline"
         size="sm"
-        value={[String(days)]}
+        value={[String(draftDays)]}
         onValueChange={(v) => v[0] && setDays(Number(v[0]))}
       >
         {DAYS.map((d) => (
@@ -287,21 +266,73 @@ function WriteCheque({
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <Button
-        size="lg"
-        disabled={disabled || amount === null || tooMuch}
-        onClick={() =>
-          amount && onWrite(amount, days).then((ok) => ok && setAmountText(""))
-        }
-      >
-        {busy ? (
-          <Loader2 className="animate-spin" />
-        ) : tooMuch ? (
-          `Only ${formatUsdc(max)} available`
-        ) : (
-          "Write cheque"
-        )}
-      </Button>
+      {showFunding ? (
+        <>
+          {!session && (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="self-start"
+              onClick={() => setFundingOpen(false)}
+            >
+              Back to cheque
+            </Button>
+          )}
+          <FundingFlow
+            account={wallet.account}
+            purpose="write"
+            targets={targets}
+            draft={{ amount: draftAmount, days: draftDays }}
+            actionLabel="Write cheque"
+            disabled={disabled}
+            onReady={async () => {
+              if (session?.purpose === "receive") return true
+              return !!amount && onWrite(amount, draftDays)
+            }}
+          />
+        </>
+      ) : (
+        <Button
+          size="lg"
+          disabled={disabled || !loaded || amount === null || shortfall}
+          onClick={() =>
+            amount &&
+            onWrite(amount, draftDays).then((ok) => ok && setAmountText(""))
+          }
+        >
+          {busy ? (
+            <Loader2 className="animate-spin" />
+          ) : tooMuch ? (
+            `Only ${formatUsdc(max)} available`
+          ) : shortfall ? (
+            "MON needed for fees"
+          ) : (
+            "Write cheque"
+          )}
+        </Button>
+      )}
+      {IS_MAINNET && loaded && shortfall && !showFunding && (
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+          <p>
+            Your Monad balance needs{" "}
+            {targets.map((target) => target.symbol).join(" and ")} to write this
+            cheque.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setFundingOpen(true)}
+          >
+            Top up from another chain
+          </Button>
+        </div>
+      )}
+      {!FACTORY && (
+        <p className="text-xs text-muted-foreground">
+          Cheque creation is unavailable right now.
+        </p>
+      )}
     </section>
   )
 }

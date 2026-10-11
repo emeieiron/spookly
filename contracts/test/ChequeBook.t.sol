@@ -8,6 +8,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 interface Vm {
+    function envAddress(string calldata) external returns (address);
     function addr(uint256) external pure returns (address);
     function sign(uint256, bytes32) external pure returns (uint8, bytes32, bytes32);
     function prank(address) external;
@@ -25,12 +26,12 @@ interface IPermitToken {
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }
 
-// Run with --fork-url on Monad testnet so the real EntryPoint 0.7, USDC and CCTP TokenMessengerV2 are exercised.
+// Run through scripts/forge.mjs on the configured Monad fork so the real EntryPoint 0.7, USDC and CCTP TokenMessengerV2 are exercised.
 contract ChequeBookForkTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     IEntryPoint constant EP = IEntryPoint(0x0000000071727De22E5E9d8BAf0edAc6f37da032);
-    IERC20 constant USDC = IERC20(0x534b2f3A21130d7a60830c2Df862319e593943A3);
-    address constant MESSENGER = 0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA;
+    IERC20 USDC;
+    address MESSENGER;
 
     uint256 issuerKey = 0x1551E5;
     address issuer;
@@ -43,6 +44,8 @@ contract ChequeBookForkTest {
     bytes constant SEALED = hex"01aabbccddeeff00112233";
 
     function setUp() public {
+        USDC = IERC20(vm.envAddress("PIPPO_USDC"));
+        MESSENGER = vm.envAddress("PIPPO_TOKEN_MESSENGER");
         issuer = vm.addr(issuerKey);
         signer = vm.addr(chequeKey);
         factory = new ChequeBookFactory(address(EP), address(USDC), MESSENGER);

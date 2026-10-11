@@ -4,7 +4,9 @@
 
 Pippo turns a USDC payment into a _cheque_: an amount set aside on Monad, dated, capped and cancellable, and shared as an ordinary link or QR code. The person holding the link scans a payment code, taps **Pay**, and the money arrives at the payee in seconds. They never set up a wallet, buy gas or "claim" anything first.
 
-`Monad testnet` · `ERC-4337 (EntryPoint v0.7)` · `Circle CCTP V2 + Forwarding Service` · `Passkeys (WebAuthn PRF)` · `Privy`
+`Monad (mainnet or testnet, developer-configured)` · `ERC-4337 (EntryPoint v0.7)` · `Circle CCTP V2 + Forwarding Service` · `Passkeys (WebAuthn PRF)` · `Privy`
+
+Mainnet and Aurora funding are configured in [`.env.example`](.env.example). See [network setup and funding behavior](docs/aurora.md). Mainnet requires its own deployed factory and EntryPoint 0.7 bundler; the recorded testnet deployment below is historical.
 
 ---
 
@@ -38,14 +40,14 @@ Sending stablecoins to someone who isn't a crypto user usually means a _claim li
 
 Pippo removes the claiming step entirely. **The link itself pays.**
 
-| | Typical claim link | Pippo spendable link |
-|---|---|---|
-| Before it's usable | Set up a wallet or passkey to claim it | Nothing to set up. The link already pays |
-| Paying someone | Claim it, then send it again from the new wallet | Scan their payment code, tap Pay |
-| Payee on another network | Stuck on the network it was sent on | Delivered on 10 networks through Circle CCTP |
-| Gas | Someone funds or sponsors the new wallet | Paid from the issuer's capped fee allowance |
-| Money left over | Sits in a wallet that may never be opened again | Cancel any time; it returns in one transaction |
-| If the link leaks | Whoever claims first takes everything | Capped, dated and cancellable until spent |
+|                          | Typical claim link                               | Pippo spendable link                           |
+| ------------------------ | ------------------------------------------------ | ---------------------------------------------- |
+| Before it's usable       | Set up a wallet or passkey to claim it           | Nothing to set up. The link already pays       |
+| Paying someone           | Claim it, then send it again from the new wallet | Scan their payment code, tap Pay               |
+| Payee on another network | Stuck on the network it was sent on              | Delivered on 10 networks through Circle CCTP   |
+| Gas                      | Someone funds or sponsors the new wallet         | Paid from the issuer's capped fee allowance    |
+| Money left over          | Sits in a wallet that may never be opened again  | Cancel any time; it returns in one transaction |
+| If the link leaks        | Whoever claims first takes everything            | Capped, dated and cancellable until spent      |
 
 ## What it does
 
@@ -75,7 +77,7 @@ flowchart TB
     subgraph Holder["Link holder's browser"]
         K[Cheque key<br/>from the URL fragment]
     end
-    subgraph Monad["Monad testnet"]
+    subgraph Monad["Monad"]
         F[ChequeBookFactory]
         B[ChequeBook<br/>ERC-4337 account]
         EP[EntryPoint v0.7]
@@ -126,17 +128,18 @@ Each issuer gets one **ChequeBook**, a minimal ERC-4337 smart account that holds
 - **Fee fencing.** Each cheque carries its own `gasLeft` budget. The operation's maximum cost, `(verificationGasLimit + callGasLimit + preVerificationGas) × maxFeePerGas`, must fit within it, and is charged against it. Operations that would certainly fail (an inactive cheque, a zero amount, more than what's left) are rejected during validation, so a link holder can't drain the fee budget with failing requests.
 
 Gas for every payment comes from the book's EntryPoint deposit, never from the holder. The book keeps two accounting totals:
+
 - `reserved`: the USDC escrowed by live cheques. Whatever exceeds it is the issuer's `available()` balance.
 - `committedGas`: the fee budget still owed to live cheques. Any deposit above it belongs to the issuer and is returned when a cheque is cancelled.
 
-| Function | Who can call it | What it does |
-|---|---|---|
-| `fundAndWrite` | Issuer | Tops up the fee deposit, pulls only the USDC shortfall (via permit), writes the cheque |
-| `write` | Issuer or factory | Registers a cheque against already-available USDC |
-| `cancel` | Issuer | Ends a cheque, refunds unspent USDC and any spare fee deposit |
-| `pay` | EntryPoint (cheque key) | Transfers USDC to an address on Monad |
-| `payCrossChain` | EntryPoint (cheque key) | Burns USDC through CCTP for delivery on another network |
-| `list` | Anyone | Returns every cheque with its state and sealed key |
+| Function        | Who can call it         | What it does                                                                           |
+| --------------- | ----------------------- | -------------------------------------------------------------------------------------- |
+| `fundAndWrite`  | Issuer                  | Tops up the fee deposit, pulls only the USDC shortfall (via permit), writes the cheque |
+| `write`         | Issuer or factory       | Registers a cheque against already-available USDC                                      |
+| `cancel`        | Issuer                  | Ends a cheque, refunds unspent USDC and any spare fee deposit                          |
+| `pay`           | EntryPoint (cheque key) | Transfers USDC to an address on Monad                                                  |
+| `payCrossChain` | EntryPoint (cheque key) | Burns USDC through CCTP for delivery on another network                                |
+| `list`          | Anyone                  | Returns every cheque with its state and sealed key                                     |
 
 A cheque address can be written only once, so a cancelled link can never become spendable again.
 
@@ -189,16 +192,17 @@ sequenceDiagram
 
 When the payee is on another network, `payCrossChain` calls Circle's **TokenMessengerV2** `depositForBurnWithHook`:
 
-| Parameter | Value |
-|---|---|
-| Finality | Standard (`minFinalityThreshold = 2000`). Monad attests in about a block, and standard transfers from Monad carry no protocol fee |
-| Hook data | `"cctp-forward"`, which invokes Circle's **Forwarding Service**. Circle submits the mint on the destination chain, so the payee needs no gas and no relayer is involved |
-| `destinationCaller` | Zero, so the forwarder can complete the mint |
-| `maxFee` | The forwarding fee quoted by Circle's Iris API (`/v2/burn/USDC/fees/15/<domain>?forward=true`, median quote) |
+| Parameter           | Value                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Finality            | Standard (`minFinalityThreshold = 2000`). Monad attests in about a block, and standard transfers from Monad carry no protocol fee                                       |
+| Hook data           | `"cctp-forward"`, which invokes Circle's **Forwarding Service**. Circle submits the mint on the destination chain, so the payee needs no gas and no relayer is involved |
+| `destinationCaller` | Zero, so the forwarder can complete the mint                                                                                                                            |
+| `maxFee`            | The forwarding fee quoted by Circle's Iris API (`/v2/burn/USDC/fees/15/<domain>?forward=true`, median quote)                                                            |
 
 The cheque burns `amount + fee`, so **the payee receives exactly the amount requested**. The holder sees the fee before paying. After the burn, the app polls Iris (`/v2/messages/15?transactionHash=…`) for the attestation and the forward state, then links to the mint transaction on the destination explorer.
 
 Verified on testnet: a cheque key paid **0.50 USDC** from Monad to an address on **Base Sepolia** with a 0.063284 USDC forwarding fee. Burn to mint took **about 15 seconds**, and the holder paid **0 MON**.
+
 - Burn on Monad: [`0x4630…7a3`](https://testnet.monadexplorer.com/tx/0x46309070f65d48d8574d28098e5f37458fa24d6becaa999ddd9a2738d0fa27a3)
 - Mint on Base Sepolia: [`0xa412…446`](https://sepolia.basescan.org/tx/0xa4120e50e6ee672e427dcdf3e2348102bc190b8ce509aed21f8fe924b8fc5446)
 
@@ -212,19 +216,20 @@ A link's key normally exists only on the device that wrote it. Pippo uses the **
    - a **64-bit key id** that tells one passkey from another.
 
    The PRF output is zeroed straight after derivation.
+
 3. **Seal.** Each new cheque key is encrypted, `version (1) | key id (8) | nonce (12) | ciphertext + tag (48)` (69 bytes), and stored on-chain alongside the cheque in the same write transaction. The contract treats it as opaque bytes, capped at 128. Every seal is decrypted and checked before the transaction is sent, so a faulty seal never reaches the chain.
 4. **Restore.** On a new device, one passkey prompt rederives the vault and opens **every** live cheque sealed with that key id. Each decrypted key must control its cheque's address before it's accepted. Restored keys are cached locally, so the prompt isn't repeated.
 
 The backup handles failures safely:
 
-| Situation | Behaviour |
-|---|---|
-| Wrong passkey chosen | Refused, because its key id matches none of the book's seals |
-| Prompt cancelled or timed out | Clear message, with the option to try again or create a new passkey |
-| Passkey lost | Create a new one for future cheques. Links locked to the old one can still be cancelled for a full refund |
-| Browser without PRF support | Detected before a passkey is created, so no unusable passkey is left behind |
-| Corrupted local key or stored vault | Discarded and recovered from the on-chain seal |
-| Sign-out | The vault and every key that has an on-chain backup are wiped from the device. Keys without a backup are kept so no link is lost |
+| Situation                           | Behaviour                                                                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Wrong passkey chosen                | Refused, because its key id matches none of the book's seals                                                                     |
+| Prompt cancelled or timed out       | Clear message, with the option to try again or create a new passkey                                                              |
+| Passkey lost                        | Create a new one for future cheques. Links locked to the old one can still be cancelled for a full refund                        |
+| Browser without PRF support         | Detected before a passkey is created, so no unusable passkey is left behind                                                      |
+| Corrupted local key or stored vault | Discarded and recovered from the on-chain seal                                                                                   |
+| Sign-out                            | The vault and every key that has an on-chain backup are wiped from the device. Keys without a backup are kept so no link is lost |
 
 Passkeys are bound to the site's domain, and new passkeys are named with their creation date so they can be told apart in the browser's picker.
 
@@ -250,57 +255,57 @@ The indexer is optional. Without `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` the app works t
 
 ## Security model
 
-| Threat | Mitigation |
-|---|---|
-| A link leaks | It can only spend its own capped escrow before its expiry, and the issuer can cancel it instantly |
-| Holder tries to overspend | `spend` checks the remaining balance, and validation rejects it before any fee is charged |
-| Holder floods failing operations to burn fees | Validation rejects operations that would fail, and each cheque's fee budget is capped separately |
-| Signature replay | The nonce key is bound to the cheque's address; each cheque has its own sequence |
-| Cancelled link reused | A cheque address can be registered only once |
-| Server compromise | Keys live in URL fragments and never reach the server. The relay forwards only `pay`/`payCrossChain` for factory-made books |
-| Sealed keys are public on-chain | AES-GCM under a key that only the issuer's passkey can rederive. Each opened key must match its cheque's address |
-| Issuer funds | Only the issuer can write, fund or cancel. A cheque key can't move anything outside its own cheque |
+| Threat                                        | Mitigation                                                                                                                  |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| A link leaks                                  | It can only spend its own capped escrow before its expiry, and the issuer can cancel it instantly                           |
+| Holder tries to overspend                     | `spend` checks the remaining balance, and validation rejects it before any fee is charged                                   |
+| Holder floods failing operations to burn fees | Validation rejects operations that would fail, and each cheque's fee budget is capped separately                            |
+| Signature replay                              | The nonce key is bound to the cheque's address; each cheque has its own sequence                                            |
+| Cancelled link reused                         | A cheque address can be registered only once                                                                                |
+| Server compromise                             | Keys live in URL fragments and never reach the server. The relay forwards only `pay`/`payCrossChain` for factory-made books |
+| Sealed keys are public on-chain               | AES-GCM under a key that only the issuer's passkey can rederive. Each opened key must match its cheque's address            |
+| Issuer funds                                  | Only the issuer can write, fund or cancel. A cheque key can't move anything outside its own cheque                          |
 
 ## Supported networks
 
-| Network (testnet) | Chain ID | CCTP domain | Route |
-|---|---|---|---|
-| Monad | 10143 | 15 | Direct USDC transfer |
-| Base Sepolia | 84532 | 6 | CCTP + Forwarding Service |
-| Arbitrum Sepolia | 421614 | 3 | CCTP + Forwarding Service |
-| OP Sepolia | 11155420 | 2 | CCTP + Forwarding Service |
-| Polygon Amoy | 80002 | 7 | CCTP + Forwarding Service |
-| Avalanche Fuji | 43113 | 1 | CCTP + Forwarding Service |
-| Unichain Sepolia | 1301 | 10 | CCTP + Forwarding Service |
-| Linea Sepolia | 59141 | 11 | CCTP + Forwarding Service |
-| World Chain Sepolia | 4801 | 14 | CCTP + Forwarding Service |
-| Ethereum Sepolia | 11155111 | 0 | CCTP + Forwarding Service |
+| Network (testnet)   | Chain ID | CCTP domain | Route                     |
+| ------------------- | -------- | ----------- | ------------------------- |
+| Monad               | 10143    | 15          | Direct USDC transfer      |
+| Base Sepolia        | 84532    | 6           | CCTP + Forwarding Service |
+| Arbitrum Sepolia    | 421614   | 3           | CCTP + Forwarding Service |
+| OP Sepolia          | 11155420 | 2           | CCTP + Forwarding Service |
+| Polygon Amoy        | 80002    | 7           | CCTP + Forwarding Service |
+| Avalanche Fuji      | 43113    | 1           | CCTP + Forwarding Service |
+| Unichain Sepolia    | 1301     | 10          | CCTP + Forwarding Service |
+| Linea Sepolia       | 59141    | 11          | CCTP + Forwarding Service |
+| World Chain Sepolia | 4801     | 14          | CCTP + Forwarding Service |
+| Ethereum Sepolia    | 11155111 | 0           | CCTP + Forwarding Service |
 
 ## Deployment
 
 Monad testnet (chain 10143):
 
-| Contract | Address |
-|---|---|
-| ChequeBookFactory | [`0xe51e48f765440c9c4187a11c78b17a810232d4f8`](https://testnet.monadexplorer.com/address/0xe51e48f765440c9c4187a11c78b17a810232d4f8) |
-| EntryPoint v0.7 | `0x0000000071727De22E5E9d8BAf0edAc6f37da032` |
-| USDC | `0x534b2f3A21130d7a60830c2Df862319e593943A3` |
-| CCTP TokenMessengerV2 | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA` |
+| Contract              | Address                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| ChequeBookFactory     | [`0xe51e48f765440c9c4187a11c78b17a810232d4f8`](https://testnet.monadexplorer.com/address/0xe51e48f765440c9c4187a11c78b17a810232d4f8) |
+| EntryPoint v0.7       | `0x0000000071727De22E5E9d8BAf0edAc6f37da032`                                                                                         |
+| USDC                  | `0x534b2f3A21130d7a60830c2Df862319e593943A3`                                                                                         |
+| CCTP TokenMessengerV2 | `0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA`                                                                                         |
 
 Each issuer's ChequeBook is deployed by the factory on their first cheque and can be looked up with `bookOf(issuer)`.
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| Contracts | Solidity 0.8.30, Foundry, OpenZeppelin, eth-infinitism account-abstraction v0.7 |
-| Chain | Monad testnet, ERC-4337 EntryPoint v0.7, Alchemy bundler |
-| Cross-chain | Circle CCTP V2, Forwarding Service, Iris API |
-| App | Next.js 16 (App Router), React 19, viem (incl. account abstraction) |
-| UI | Tailwind CSS v4, shadcn/ui on Base UI, React view transitions |
-| Accounts | Privy (Google, email, external wallets, embedded wallets) |
-| Passkeys | WebAuthn PRF through Mera, Web Crypto (HKDF, AES-GCM), IndexedDB |
-| Indexing | Envio HyperIndex v3 and HyperSync, multichain with dynamic contracts, GraphQL |
+| Layer       | Technology                                                                      |
+| ----------- | ------------------------------------------------------------------------------- |
+| Contracts   | Solidity 0.8.30, Foundry, OpenZeppelin, eth-infinitism account-abstraction v0.7 |
+| Chain       | Configured Monad network, ERC-4337 EntryPoint v0.7, EntryPoint 0.7 bundler      |
+| Cross-chain | Circle CCTP V2, Forwarding Service, Iris API                                    |
+| App         | Next.js 16 (App Router), React 19, viem (incl. account abstraction)             |
+| UI          | Tailwind CSS v4, shadcn/ui on Base UI, React view transitions                   |
+| Accounts    | Privy (Google, email, external wallets, embedded wallets)                       |
+| Passkeys    | WebAuthn PRF through Mera, Web Crypto (HKDF, AES-GCM), IndexedDB                |
+| Indexing    | Envio HyperIndex v3 and HyperSync, multichain with dynamic contracts, GraphQL   |
 
 ## Running locally
 
@@ -312,22 +317,28 @@ cp .env.example .env.local
 pnpm dev                       # http://localhost:3000
 ```
 
-| Variable | Needed for | Description |
-|---|---|---|
-| `NEXT_PUBLIC_PRIVY_APP_ID` | App | Privy app id for issuer sign-in |
-| `ALCHEMY_API_KEY` | Payments | Server-side key for the Monad testnet bundler. Alternatively set `BUNDLER_RPC_URL` to any EntryPoint v0.7 bundler |
-| `MONAD_RPC_URL`, `NEXT_PUBLIC_MONAD_RPC_URL` | Optional | RPC overrides. The default is Monad's public testnet RPC |
-| `DEPLOYER_PRIVATE_KEY` | Deploy, smoke test | A testnet-only key holding MON (and USDC for the smoke test) |
-| `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` | Optional | The indexer's GraphQL endpoint, for payment history and live stats |
+Fill in `.env.local` before starting. Mainnet is the default; set `NEXT_PUBLIC_PIPPO_NETWORK=testnet` to use the recorded testnet deployment. Restart or rebuild after changing networks.
 
-Test funds: [Circle USDC faucet](https://faucet.circle.com) and the [Monad faucet](https://faucet.monad.xyz).
+| Variable                                     | Needed for                       | Description                                                               |
+| -------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_PIPPO_NETWORK`                  | Environment                      | `mainnet` or `testnet`; shared by the app and developer tooling           |
+| `NEXT_PUBLIC_PRIVY_APP_ID`                   | App                              | Privy app ID for issuer sign-in                                           |
+| `AURORA_API_KEY`                             | Cross-chain funding              | Server-side Aurora Studio key; mainnet only                               |
+| `BUNDLER_RPC_URL`                            | Payments                         | EntryPoint 0.7 bundler for the selected Monad network                     |
+| `ALCHEMY_API_KEY`                            | Testnet payments                 | Optional fallback when the testnet bundler URL is unset                   |
+| `MONAD_RPC_URL`, `NEXT_PUBLIC_MONAD_RPC_URL` | Optional                         | RPC overrides for the selected network                                    |
+| `DEPLOYER_PRIVATE_KEY`                       | Broadcast deployment, smoke test | Key holding MON and, for the smoke test, USDC in the selected environment |
+| `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`              | Optional                         | Matching indexer endpoint for history and stats                           |
+
+On testnet, get funds from the [Circle USDC faucet](https://faucet.circle.com) and [Monad faucet](https://faucet.monad.xyz). Follow [mainnet setup](docs/aurora.md) before using real funds.
 
 **Contracts:**
 
 ```bash
-pnpm contracts:test      # Foundry tests against a fork of Monad testnet
+pnpm contracts:test      # Foundry tests against a fork of the configured Monad network
 pnpm contracts:build     # compile and regenerate the app's ABI bindings
-pnpm contracts:deploy    # deploy the factory and record its address for the app
+pnpm contracts:deploy    # read-only network and required-contract checks
+pnpm contracts:deploy --broadcast # deploy and record the configured factory
 ```
 
 **Indexer (optional):** needs Docker and a free [Envio API token](https://envio.dev/app/api-tokens) for HyperSync.
@@ -338,24 +349,24 @@ echo "ENVIO_API_TOKEN=<your token>" > indexer/.env
 pnpm indexer:dev                                   # GraphQL on http://localhost:8080/v1/graphql
 ```
 
-Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql` for the app. To host it, deploy the `indexer` folder on Envio's hosted service, with `indexer` as the root directory and `config.yaml` as the config file. Then point the app's variable at the hosted endpoint.
+Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql` for the app. The root command generates `config.generated.mainnet.yaml` or `config.generated.testnet.yaml` from the selected deployment. For hosted Envio, use that generated configuration; see [indexer setup](docs/aurora.md) for environment isolation and initial start blocks.
 
-**Fully local fork:** run `anvil --fork-url https://testnet-rpc.monad.xyz`, deploy with `MONAD_RPC_URL=http://127.0.0.1:8545`, start the bundled minimal bundler with `pnpm dev:fork`, then run the app with `NEXT_PUBLIC_MONAD_RPC_URL` and `MONAD_RPC_URL` pointing at anvil and `BUNDLER_RPC_URL=http://localhost:4337`.
+**Fully local testnet fork:** set `NEXT_PUBLIC_PIPPO_NETWORK=testnet`, run `anvil --fork-url https://testnet-rpc.monad.xyz`, deploy using `--broadcast` with `MONAD_RPC_URL=http://127.0.0.1:8545`, start the bundled minimal bundler with `pnpm dev:fork`, then run the app with `NEXT_PUBLIC_MONAD_RPC_URL` and `MONAD_RPC_URL` pointing at anvil and `BUNDLER_RPC_URL=http://localhost:4337`.
 
 ## Testing
 
-| Command | What it covers |
-|---|---|
-| `pnpm contracts:test` | 14 Foundry tests on a Monad testnet fork: one-transaction writes, shortfall-only funding, sealed-key storage, payments on Monad and burns for other networks, per-cheque nonces, wrong-key and overspend rejection before fees are charged, cross-cheque nonce misuse, cancellation refunds (keeping fees other cheques still need), expiry, and issuer-only guards |
-| `pnpm test` | Passkey vault: deterministic derivation, sealing and opening, wrong passkey, tampered nonce or ciphertext, seals moved to another cheque, malformed seals, restoring many links in one pass, corrupted local keys, and sign-out cleanup |
-| `pnpm --dir indexer test` | Indexer: decoding a real CCTP burn message, burn and mint keys agreeing across chains, non-matching payments, domain mapping |
-| `pnpm smoke` | End to end on real Monad testnet: writes a cheque, pays 0.5 USDC to Base Sepolia through the bundler, and waits for Circle's forwarder to deliver |
-| `pnpm typecheck`, `pnpm lint` | TypeScript and ESLint |
+| Command                       | What it covers                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm contracts:test`         | 14 Foundry tests on the selected Monad fork: one-transaction writes, shortfall-only funding, sealed-key storage, payments on Monad and burns for other networks, per-cheque nonces, wrong-key and overspend rejection before fees are charged, cross-cheque nonce misuse, cancellation refunds (keeping fees other cheques still need), expiry, and issuer-only guards |
+| `pnpm test`                   | Aurora quote validation, funding deficits, session recovery, partial settlement and duplicate-payment guards. Passkey vault: deterministic derivation, sealing and opening, wrong passkey, tampered nonce or ciphertext, seals moved to another cheque, malformed seals, restoring many links in one pass, corrupted local keys, and sign-out cleanup                  |
+| `pnpm --dir indexer test`     | Indexer: decoding a real CCTP burn message, burn and mint keys agreeing across chains, non-matching payments, domain mapping                                                                                                                                                                                                                                           |
+| `pnpm smoke`                  | End to end on real Monad testnet: writes a cheque, pays 0.5 USDC to Base Sepolia through the bundler, and waits for Circle's forwarder to deliver                                                                                                                                                                                                                      |
+| `pnpm typecheck`, `pnpm lint` | TypeScript and ESLint                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Limitations
 
-- **Testnet only.** Test USDC has no value.
-- **Monad is the only source chain.** Cheques are written and escrowed on Monad and pay out to ten networks.
+- **Mainnet setup required.** The mainnet factory is not deployed yet. Live Aurora funding requires a Studio key; the integration has not yet been verified with a live transfer.
+- **Monad escrow.** Cheques are written and escrowed on Monad and pay out to ten networks. Aurora can fund the issuer from other supported chains.
 - **Older links aren't backed up.** Links written before a passkey is set up stay on the device that wrote them. Those cheques can still be cancelled for a refund.
 - **Passkeys are tied to the site's domain.** Links backed up on one domain can't be restored from another.
 - **Fixed fee allowance.** Each cheque reserves 0.3 MON for gas, and whatever it doesn't use is refunded on cancel.

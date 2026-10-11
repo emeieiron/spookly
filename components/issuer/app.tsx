@@ -36,16 +36,18 @@ import {
   unlockVault,
   type LinkVault,
 } from "@/lib/link-vault"
-import { FACTORY, USDC, erc20Abi, monadTestnet } from "@/lib/chain"
+import { FACTORY, USDC, erc20Abi, monad } from "@/lib/chain"
 import { errorMessage, publicClient } from "@/lib/cheque-payment"
 import { shortAddress } from "@/lib/money"
 import type { SignerClient } from "@/lib/wallet-send"
+import { creationGasReserve } from "@/lib/funding/requirements"
 
 export type Wallet = {
   account: Address
   client: SignerClient
   usdc: bigint
   mon: bigint
+  gasReserve: bigint
   book: Book | null
   checkedAt: number
 }
@@ -83,15 +85,17 @@ export const useIssuer = () => useContext(IssuerContext)!
 const walletClientFor = (account: Address, provider: EIP1193Provider) =>
   createWalletClient({
     account,
-    chain: monadTestnet,
+    chain: monad,
     transport: custom(provider),
   })
 
-async function fetchWallet(
+export async function fetchWallet(
   account: Address,
   client: SignerClient
 ): Promise<Wallet> {
-  const [usdc, mon, book] = await Promise.all([
+  if ((await publicClient.getChainId()) !== monad.id)
+    throw new Error("The wallet service is on the wrong network.")
+  const [usdc, mon, book, fees] = await Promise.all([
     publicClient.readContract({
       address: USDC,
       abi: erc20Abi,
@@ -100,8 +104,17 @@ async function fetchWallet(
     }),
     publicClient.getBalance({ address: account }),
     FACTORY ? readBook(FACTORY, account) : null,
+    publicClient.estimateFeesPerGas(),
   ])
-  return { account, client, usdc, mon, book, checkedAt: Date.now() }
+  return {
+    account,
+    client,
+    usdc,
+    mon,
+    book,
+    gasReserve: creationGasReserve(fees.maxFeePerGas, !!book),
+    checkedAt: Date.now(),
+  }
 }
 
 export function IssuerApp({ children }: { children: React.ReactNode }) {
@@ -140,7 +153,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     let live = true
     ;(async () => {
       try {
-        await target.switchChain(monadTestnet.id)
+        await target.switchChain(monad.id)
         const provider = (await target.getEthereumProvider()) as EIP1193Provider
         const account = getAddress(target.address)
         if (live) await load(account, walletClientFor(account, provider))
@@ -194,7 +207,8 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     setError(null)
     try {
       const result = await action(wallet)
-      await load(wallet.account, wallet.client)
+      // A refresh failure must not turn a successful transaction into a failed action.
+      await load(wallet.account, wallet.client).catch(() => {})
       return result
     } catch (e) {
       setError(errorMessage(e))
