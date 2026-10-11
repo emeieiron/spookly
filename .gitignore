@@ -37,3 +37,11 @@ pnpm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# foundry
+/contracts/out/
+/contracts/cache/
+!.env.example
+/.claude/
+/.smoke-cheque.json
+/.firebase/
