@@ -1,4 +1,5 @@
 import { getAddress, toHex, type Hash } from "viem"
+import { IS_MAINNET } from "./chain"
 import {
   SPONSOR_CHAIN_ID,
   sponsorProofMessage,
@@ -27,6 +28,7 @@ export function createSponsorSender({
   generateAuthorizationSignature,
 }: SponsorDependencies): SponsorSender {
   const send: SponsorSender = async ({ client, from, to, data, value }) => {
+    if (IS_MAINNET) return null
     const tx: SponsorTransaction = {
       from: getAddress(from),
       to: getAddress(to),

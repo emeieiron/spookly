@@ -1,3 +1,4 @@
+import { IS_MAINNET } from "@/lib/chain"
 import { randomUUID } from "node:crypto"
 import { NextResponse } from "next/server"
 import { getAddress, recoverMessageAddress, type Hex } from "viem"
@@ -36,7 +37,7 @@ export const runtime = "nodejs"
 const json = (body: unknown, status = 200) =>
   NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } })
 const configured = () =>
-  !!process.env.PRIVY_APP_SECRET && sponsorStoreConfigured()
+  !IS_MAINNET && !!process.env.PRIVY_APP_SECRET && sponsorStoreConfigured()
 
 export async function POST(request: Request) {
   // A disabled or unavailable sponsor preserves the existing self-funded path.

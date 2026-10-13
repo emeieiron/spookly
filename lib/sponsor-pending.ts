@@ -1,5 +1,5 @@
 import { decodeFunctionData, type Hash } from "viem"
-import { USDC, erc20Abi } from "./chain"
+import { USDC, erc20Abi, IS_MAINNET } from "./chain"
 import { type SponsorRequest, type SponsorTransaction } from "./sponsorship"
 
 export type PendingSponsor = {
@@ -13,6 +13,7 @@ export type PendingSponsor = {
 }
 const key = (address: string) => `pippo:sponsor:10143:${address.toLowerCase()}`
 export function readPendingSponsor(address: string): PendingSponsor | null {
+  if (IS_MAINNET) return null
   const pending = JSON.parse(
     localStorage.getItem(key(address)) ?? "null"
   ) as PendingSponsor | null

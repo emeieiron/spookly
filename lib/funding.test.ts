@@ -16,6 +16,7 @@ import {
   type FundingSession,
   type QuoteRequest,
 } from "./funding/model"
+import { FEE_ALLOWANCE } from "./cheque-book"
 import { creationGasReserve, fundingTargets } from "./funding/requirements"
 import { selectNetwork, bundlerEndpoint } from "../config/network.mjs"
 
@@ -257,5 +258,41 @@ test("only an expired request with every deposit unpaid can be closed", () => {
   assert.deepEqual(
     readSession({ getItem: () => JSON.stringify(unpaid) }, 143, account),
     unpaid
+  )
+})
+
+test("delegated wallet funding includes the reserve only when the cheque spends native MON", () => {
+  assert.deepEqual(
+    fundingTargets(
+      1_000_000n,
+      1_000_000n,
+      parseEther("1"),
+      0n,
+      0n,
+      parseEther("0.6"),
+      true
+    ),
+    [
+      {
+        symbol: "MON",
+        amount: (
+          parseEther("10.6") +
+          FEE_ALLOWANCE -
+          parseEther("1")
+        ).toString(),
+      },
+    ]
+  )
+  assert.deepEqual(
+    fundingTargets(
+      1_000_000n,
+      1_000_000n,
+      parseEther("1"),
+      0n,
+      FEE_ALLOWANCE,
+      parseEther("0.6"),
+      true
+    ),
+    []
   )
 })

@@ -7,6 +7,10 @@ import {ChequeBook, Permit} from "../src/ChequeBook.sol";
 // Models the property relevant to EIP-7702: execution remains at the issuer's
 // address, but USDC sees contract code and rejects the deployed v/r/s permit.
 contract BatchWallet {
+    address immutable token;
+
+    constructor(address token_) { token = token_; }
+
     receive() external payable {}
 
     function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
@@ -16,7 +20,7 @@ contract BatchWallet {
     function execute(address target, bytes calldata data, uint256 value, uint256 approval) external {
         require(msg.sender == address(this), "owner authorization");
         if (approval > 0) {
-            (bool approved,) = address(0x534b2f3A21130d7a60830c2Df862319e593943A3)
+            (bool approved,) = token
                 .call(abi.encodeWithSignature("approve(address,uint256)", target, approval));
             require(approved, "approval failed");
         }
@@ -35,7 +39,7 @@ contract SponsoredWalletForkTest is ChequeBookForkTest {
         vm.deal(issuer, 1 ether);
         Permit memory p = permit(address(factory), 2e6);
         uint256 nonce = IPermitToken(address(USDC)).nonces(issuer);
-        vm.etch(issuer, address(new BatchWallet()).code);
+        vm.etch(issuer, address(new BatchWallet(address(USDC))).code);
         vm.prank(issuer);
         BatchWallet(payable(issuer))
             .execute(
@@ -55,7 +59,7 @@ contract SponsoredWalletForkTest is ChequeBookForkTest {
 
     function testDelegatedWalletFundsExistingBookAndReceivesCancellation() public {
         Permit memory p = permit(address(book), 2e6);
-        vm.etch(issuer, address(new BatchWallet()).code);
+        vm.etch(issuer, address(new BatchWallet(address(USDC))).code);
         vm.prank(issuer);
         BatchWallet(payable(issuer))
             .execute(

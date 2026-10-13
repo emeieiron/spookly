@@ -1,5 +1,6 @@
 import { parseEther } from "viem"
 import { FEE_ALLOWANCE } from "../cheque-book"
+import { MONAD_DELEGATED_RESERVE } from "../monad-reserve"
 import type { FundingTarget } from "./model"
 
 // Reserve for issuer transaction gas; unused MON stays in the wallet.
@@ -14,12 +15,16 @@ export function fundingTargets(
   mon: bigint,
   available = 0n,
   spareGas = 0n,
-  gasReserve = CREATION_GAS_RESERVE
+  gasReserve = CREATION_GAS_RESERVE,
+  delegated = false
 ): FundingTarget[] {
   const targets: FundingTarget[] = []
   const missingUsdc = amount - available - usdc
+  const value = FEE_ALLOWANCE > spareGas ? FEE_ALLOWANCE - spareGas : 0n
   const neededMon =
-    (FEE_ALLOWANCE > spareGas ? FEE_ALLOWANCE - spareGas : 0n) + gasReserve
+    value +
+    gasReserve +
+    (delegated && value > 0n ? MONAD_DELEGATED_RESERVE : 0n)
   if (missingUsdc > 0n)
     targets.push({ symbol: "USDC", amount: missingUsdc.toString() })
   if (neededMon > mon)

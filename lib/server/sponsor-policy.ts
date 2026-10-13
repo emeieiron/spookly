@@ -9,7 +9,7 @@ import {
   type Address,
 } from "viem"
 import { chequeBookAbi, factoryAbi } from "../abi"
-import { FACTORY, USDC, erc20Abi, monadTestnet } from "../chain"
+import { FACTORY, USDC, erc20Abi, monad } from "../chain"
 import {
   SPONSOR_CHAIN_ID,
   sponsorRequest,
@@ -24,10 +24,8 @@ import {
 } from "../monad-reserve"
 
 export const sponsorClient = createPublicClient({
-  chain: monadTestnet,
-  transport: http(
-    process.env.MONAD_RPC_URL ?? monadTestnet.rpcUrls.default.http[0]
-  ),
+  chain: monad,
+  transport: http(process.env.MONAD_RPC_URL ?? monad.rpcUrls.default.http[0]),
 })
 
 // Dev configuration only. Reservations count attempts, including failures and cancellations.
@@ -115,7 +113,10 @@ export function sponsorApproval(tx: SponsorTransaction): bigint {
 }
 
 export async function validateSponsorTransaction(tx: SponsorTransaction) {
-  if ((await sponsorClient.getChainId()) !== SPONSOR_CHAIN_ID)
+  if (
+    monad.id !== SPONSOR_CHAIN_ID ||
+    (await sponsorClient.getChainId()) !== SPONSOR_CHAIN_ID
+  )
     throw new Error("Sponsorship requires Monad testnet.")
   const book = FACTORY
     ? await sponsorClient.readContract({

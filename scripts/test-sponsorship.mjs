@@ -15,7 +15,11 @@ try {
     ["--import", "tsx", "--test", "lib/sponsor-store.integration.test.ts"],
     {
       stdio: "inherit",
-      env: { ...process.env, SPONSOR_REDIS_TEST_CONTAINER: container },
+      env: {
+        ...process.env,
+        SPONSOR_REDIS_TEST_CONTAINER: container,
+        NEXT_PUBLIC_PIPPO_NETWORK: "testnet",
+      },
     }
   )
   status = result.status ?? 1

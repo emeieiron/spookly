@@ -69,7 +69,8 @@ export function Receive() {
                       wallet.mon,
                       0n,
                       wallet.book?.spareGas,
-                      wallet.gasReserve
+                      wallet.gasReserve,
+                      wallet.delegated
                     )
                   : []
               }

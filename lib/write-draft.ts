@@ -1,4 +1,5 @@
 import { type Address, type Hex, type Hash } from "viem"
+import { monad } from "./chain"
 
 export type WriteDraft = {
   key: Hex
@@ -12,7 +13,7 @@ export type WriteDraft = {
   hash?: Hash
 }
 const storageKey = (owner: Address) =>
-  `pippo:write:10143:${owner.toLowerCase()}`
+  `pippo:write:${monad.id}:${owner.toLowerCase()}`
 export const readWriteDraft = (owner: Address): WriteDraft | null =>
   JSON.parse(localStorage.getItem(storageKey(owner)) ?? "null")
 export const saveWriteDraft = (owner: Address, draft: WriteDraft) =>
