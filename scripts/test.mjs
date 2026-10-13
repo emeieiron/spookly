@@ -7,10 +7,7 @@ for (const network of ["testnet", "mainnet"]) {
   const selected =
     network === "testnet"
       ? tests
-      : tests.filter(
-          (name) =>
-            !name.startsWith("sponsor") && name !== "issuer-write.test.ts"
-        )
+      : tests.filter((name) => !name.startsWith("sponsor"))
   console.log(`Testing ${network}`)
   const result = spawnSync(
     process.execPath,

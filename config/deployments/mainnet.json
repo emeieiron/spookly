@@ -1,6 +1,6 @@
 {
   "chainId": 143,
-  "factory": null,
-  "blockNumber": null,
-  "transactionHash": null
+  "factory": "0x86eb182052582d814c37a127a712353087ba759a",
+  "blockNumber": "113088302",
+  "transactionHash": "0x86cab1eec99d86879a5dc5796036f1cc3a86a5141e0eb2255b1139854c07302d"
 }

@@ -6,7 +6,7 @@ Pippo turns a USDC payment into a _cheque_: an amount set aside on Monad, dated,
 
 `Monad (mainnet or testnet, developer-configured)` · `ERC-4337 (EntryPoint v0.7)` · `Circle CCTP V2 + Forwarding Service` · `Passkeys (WebAuthn PRF)` · `Privy`
 
-Mainnet and Aurora funding are configured in [`.env.example`](.env.example). See [network setup and funding behavior](docs/aurora.md). Mainnet requires its own deployed factory and EntryPoint 0.7 bundler; the recorded testnet deployment below is historical.
+Mainnet and Aurora funding are configured in [`.env.example`](.env.example). See [network setup and funding behavior](docs/aurora.md). The mainnet factory is recorded in `config/deployments/mainnet.json`; configure a mainnet EntryPoint 0.7 bundler. The recorded testnet deployment below is historical.
 
 ---
 
@@ -340,7 +340,7 @@ On testnet, get funds from the [Circle USDC faucet](https://faucet.circle.com) a
 pnpm contracts:test      # Foundry tests against a fork of the configured Monad network
 pnpm contracts:build     # compile and regenerate the app's ABI bindings
 pnpm contracts:deploy    # read-only network and required-contract checks
-pnpm contracts:deploy --broadcast # deploy and record the configured factory
+pnpm contracts:deploy --broadcast --max-fee 0.5 # explicit MON gas budget; deploy and record the factory
 ```
 
 **Indexer (optional):** needs Docker and a free [Envio API token](https://envio.dev/app/api-tokens) for HyperSync.
@@ -348,10 +348,10 @@ pnpm contracts:deploy --broadcast # deploy and record the configured factory
 ```bash
 pnpm indexer:install
 echo "ENVIO_API_TOKEN=<your token>" > indexer/.env
-pnpm indexer:dev                                   # GraphQL on http://localhost:8080/v1/graphql
+pnpm indexer:dev                                   # mainnet GraphQL on :8081; testnet on :8080
 ```
 
-Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql` for the app. The root command generates `config.generated.mainnet.yaml` or `config.generated.testnet.yaml` from the selected deployment. For hosted Envio, use that generated configuration; see [indexer setup](docs/aurora.md) for environment isolation and initial start blocks.
+Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` to `http://localhost:8081/v1/graphql` for mainnet or `http://localhost:8080/v1/graphql` for testnet. The root command generates `config.generated.mainnet.yaml` or `config.generated.testnet.yaml` from the selected deployment. For hosted Envio, use that generated configuration; see [indexer setup](docs/aurora.md) for environment isolation and initial start blocks.
 
 **Fully local testnet fork:** set `NEXT_PUBLIC_PIPPO_NETWORK=testnet`, run `anvil --fork-url https://testnet-rpc.monad.xyz`, deploy using `--broadcast` with `MONAD_RPC_URL=http://127.0.0.1:8545`, start the bundled minimal bundler with `pnpm dev:fork`, then run the app with `NEXT_PUBLIC_MONAD_RPC_URL` and `MONAD_RPC_URL` pointing at anvil and `BUNDLER_RPC_URL=http://localhost:4337`.
 
@@ -367,7 +367,7 @@ Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql` for th
 
 ## Limitations
 
-- **Mainnet setup required.** The mainnet factory is not deployed yet. Live Aurora funding requires a Studio key; the integration has not yet been verified with a live transfer.
+- **Mainnet hosting setup required.** Configure mainnet credentials and indexer endpoints on the deployment host. Live Aurora funding requires a Studio key; the integration has not yet been verified with a live transfer.
 - **Monad escrow.** Cheques are written and escrowed on Monad and pay out to ten networks. Aurora can fund the issuer from other supported chains.
 - **Older links aren't backed up.** Links written before a passkey is set up stay on the device that wrote them. Those cheques can still be cancelled for a refund.
 - **Passkeys are tied to the site's domain.** Links backed up on one domain can't be restored from another.

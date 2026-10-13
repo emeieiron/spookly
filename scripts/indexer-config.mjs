@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { randomBytes } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { resolve } from "node:path"
 import { createPublicClient, http } from "viem"
@@ -79,9 +80,59 @@ const command = process.argv[2]
 if (command) {
   if (!["dev", "codegen", "start"].includes(command))
     throw new Error("Use dev, codegen or start")
+  let runCommand = command
+  if (appNetwork.name === "mainnet" && command === "dev") {
+    const local = "indexer/.env.mainnet.local"
+    if (!existsSync(local))
+      writeFileSync(
+        local,
+        [
+          "ENVIO_PG_HOST=localhost",
+          "ENVIO_PG_PORT=5434",
+          "ENVIO_PG_DATABASE=envio-dev",
+          `ENVIO_PG_PASSWORD=${randomBytes(24).toString("hex")}`,
+          "ENVIO_INDEXER_PORT=9899",
+          "HASURA_GRAPHQL_ENDPOINT=http://localhost:8081/v1/metadata",
+          `HASURA_GRAPHQL_ADMIN_SECRET=${randomBytes(24).toString("hex")}`,
+          "",
+        ].join("\n"),
+        { mode: 0o600 }
+      )
+    if (existsSync("indexer/.env")) process.loadEnvFile("indexer/.env")
+    process.loadEnvFile(local)
+    if (
+      process.env.ENVIO_PG_PORT !== "5434" ||
+      process.env.HASURA_GRAPHQL_ENDPOINT !==
+        "http://localhost:8081/v1/metadata"
+    )
+      throw new Error(
+        "Mainnet development must use its isolated database and Hasura ports"
+      )
+    const docker = spawnSync(
+      "docker",
+      [
+        "compose",
+        "--env-file",
+        local,
+        "-f",
+        "indexer/compose.mainnet.yaml",
+        "up",
+        "-d",
+      ],
+      { stdio: "inherit" }
+    )
+    if (docker.status !== 0) process.exit(docker.status ?? 1)
+    const codegen = spawnSync(
+      "node",
+      ["node_modules/envio/bin.mjs", "codegen", "--config", filename],
+      { cwd: "indexer", stdio: "inherit" }
+    )
+    if (codegen.status !== 0) process.exit(codegen.status ?? 1)
+    runCommand = "start"
+  }
   const result = spawnSync(
     "node",
-    ["node_modules/envio/bin.mjs", command, "--config", filename],
+    ["node_modules/envio/bin.mjs", runCommand, "--config", filename],
     {
       cwd: "indexer",
       stdio: "inherit",
