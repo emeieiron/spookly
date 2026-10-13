@@ -47,3 +47,13 @@ next-env.d.ts
 
 /.smoke-spook-*.json
 /indexer/config.generated.*.yaml
+
+# local development guidance and reference artifacts
+/AGENTS.md
+/CLAUDE.md
+/docs/aurora-live-validation.md
+/docs/aurora.md
+/docs/privy-testnet.md
+/docs/spender-pwa.md
+/components/iso/
+/.local/

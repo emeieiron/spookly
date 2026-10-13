@@ -6,7 +6,7 @@ Spookly turns a USDC payment into a _spook_: an amount set aside on Monad, dated
 
 `Monad (mainnet or testnet, developer-configured)` · `ERC-4337 (EntryPoint v0.7)` · `Circle CCTP V2 + Forwarding Service` · `Passkeys (WebAuthn PRF)` · `Privy`
 
-Mainnet and Aurora funding are configured in [`.env.example`](.env.example). See [network setup and funding behavior](docs/aurora.md). The mainnet factory is recorded in `config/deployments/mainnet.json`; configure a mainnet EntryPoint 0.7 bundler. The recorded testnet deployment below is historical.
+Mainnet and Aurora funding are configured in [`.env.example`](.env.example). See [local setup](#running-locally) for network and service configuration. Factory records for both environments are in `config/deployments/`; payments require an EntryPoint 0.7 bundler for the selected Monad network.
 
 ---
 
@@ -29,6 +29,8 @@ Mainnet and Aurora funding are configured in [`.env.example`](.env.example). See
 - [Deployment](#deployment)
 - [Tech stack](#tech-stack)
 - [Running locally](#running-locally)
+  - [Optional testnet sponsorship and wallet MFA](#optional-testnet-sponsorship-and-wallet-mfa)
+  - [Installable spender](#installable-spender)
 - [Testing](#testing)
 - [Limitations](#limitations)
 
@@ -235,7 +237,7 @@ Passkeys are bound to the site's domain, and new passkeys are named with their c
 
 ### Issuer accounts and Monad-safe transactions
 
-Optional bounded issuer gas sponsorship and wallet authenticator MFA are documented in [Privy testnet setup](docs/privy-testnet.md). Sponsorship stays on Monad testnet and uses server-only configuration.
+Optional bounded issuer gas sponsorship uses server-only configuration and operates on Monad testnet. Wallet authenticator MFA is optional in either environment. See [setup](#optional-testnet-sponsorship-and-wallet-mfa).
 
 - **Privy sign-in.** Google, email or an existing wallet. Email and social sign-ins create an embedded wallet with no seed phrase. Wallet pop-ups are disabled, and the app's own buttons are the confirmation.
 - **Gas checks for Monad.** Monad charges gas by the gas _limit_. It also includes a transaction that can afford its gas but not its value, then reverts it, so the gas is lost. Every issuer transaction is therefore estimated as if funded, using a balance state override because Monad refuses to estimate a short balance. The value plus `gasLimit × maxFeePerGas` is checked against the real balance before anything is signed.
@@ -317,6 +319,8 @@ pnpm dev                       # http://localhost:3000
 
 Fill in `.env.local` before starting. Mainnet is the default; set `NEXT_PUBLIC_SPOOKLY_NETWORK=testnet` to use the recorded testnet deployment. Restart or rebuild after changing networks.
 
+Add the app's origin to Privy. Configure `BUNDLER_RPC_URL` with an EntryPoint 0.7 bundler for the selected Monad network; an ordinary chain RPC cannot submit user operations. Optional RPC overrides must serve the same network. Aurora funding requires a server-side key from [Aurora Studio](https://studio.aurora.dev) and is available only on mainnet.
+
 | Variable                                     | Needed for                       | Description                                                               |
 | -------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_SPOOKLY_NETWORK`                | Environment                      | `mainnet` or `testnet`; shared by the app and developer tooling           |
@@ -328,7 +332,15 @@ Fill in `.env.local` before starting. Mainnet is the default; set `NEXT_PUBLIC_S
 | `DEPLOYER_PRIVATE_KEY`                       | Broadcast deployment, smoke test | Key holding MON and, for the smoke test, USDC in the selected environment |
 | `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`              | Optional                         | Matching indexer endpoint for history and stats                           |
 
-On testnet, get funds from the [Circle USDC faucet](https://faucet.circle.com) and [Monad faucet](https://faucet.monad.xyz). Follow [mainnet setup](docs/aurora.md) before using real funds.
+On testnet, get funds from the [Circle USDC faucet](https://faucet.circle.com) and [Monad faucet](https://faucet.monad.xyz). Production hosting needs its own service credentials and matching indexer endpoint; local environment files do not configure the deployment host.
+
+### Optional testnet sponsorship and wallet MFA
+
+For gas sponsorship, configure Privy TEE wallets, enable sponsorship for Monad Testnet only, disable **Allow transactions from the client**, and leave swap-fee sponsorship off. Use an Upstash Redis database with eviction disabled. Set `PRIVY_GAS_SPONSORSHIP=true`, `PRIVY_APP_SECRET`, `UPSTASH_REDIS_REST_URL`, and `UPSTASH_REDIS_REST_TOKEN` in the server environment. Keep these credentials server-only; the client and server must use the same Privy app ID. Mainnet disables sponsorship regardless of this flag.
+
+Sponsorship covers eligible issuer transaction fees, while the issuer supplies the Spook's USDC principal and MON allowance. Limits in `lib/server/sponsor-policy.ts` allow five reservations per wallet and Privy user per UTC day, and 100 across the app. Attempts count toward the limits. Disabling sponsorship stops new reservations; configured credentials and storage remain necessary to reconcile pending submissions.
+
+Enable **Authenticator app** wallet MFA in Privy to offer optional enrollment through **Protect wallet**. Privy's signing flow handles verification automatically. Wallet MFA and the passkey used to back up Spook links serve separate purposes.
 
 **Contracts:**
 
@@ -339,6 +351,8 @@ pnpm contracts:deploy    # read-only network and required-contract checks
 pnpm contracts:deploy --broadcast --max-fee 0.5 # explicit MON gas budget; deploy and record the factory
 ```
 
+Keep `DEPLOYER_PRIVATE_KEY` in ignored, permission-restricted `.env.deploy.local`, separate from app credentials. Every broadcast requires an explicit maximum fee budget. Commit the public factory record written to `config/deployments/`, then restart or rebuild the app.
+
 **Indexer (optional):** needs Docker and a free [Envio API token](https://envio.dev/app/api-tokens) for HyperSync.
 
 ```bash
@@ -347,9 +361,15 @@ echo "ENVIO_API_TOKEN=<your token>" > indexer/.env
 pnpm indexer:dev                                   # mainnet GraphQL on :8081; testnet on :8080
 ```
 
-Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` to `http://localhost:8081/v1/graphql` for mainnet or `http://localhost:8080/v1/graphql` for testnet. The root command generates `config.generated.mainnet.yaml` or `config.generated.testnet.yaml` from the selected deployment. For hosted Envio, use that generated configuration; see [indexer setup](docs/aurora.md) for environment isolation and initial start blocks.
+Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` to `http://localhost:8081/v1/graphql` for mainnet or `http://localhost:8080/v1/graphql` for testnet. The root command generates `config.generated.mainnet.yaml` or `config.generated.testnet.yaml` from the selected deployment. Mainnet uses a separate Docker volume and Postgres/Hasura stack on ports 5434/8081; testnet uses 5433/8080. Local mainnet database credentials stay in ignored `indexer/.env.mainnet.local`. Keep `config/deployments/mainnet-indexer.json` for reproducible destination start blocks. Hosted Envio needs the generated configuration and a separate database and endpoint for each environment.
 
 **Fully local testnet fork:** set `NEXT_PUBLIC_SPOOKLY_NETWORK=testnet`, run `anvil --fork-url https://testnet-rpc.monad.xyz`, deploy using `--broadcast` with `MONAD_RPC_URL=http://127.0.0.1:8545`, start the bundled minimal bundler with `pnpm dev:fork`, then run the app with `NEXT_PUBLIC_MONAD_RPC_URL` and `MONAD_RPC_URL` pointing at anvil and `BUNDLER_RPC_URL=http://localhost:4337`.
+
+### Installable spender
+
+Deploy over HTTPS and open `/spook`. Use the browser's **Install app** action in supported Chromium browsers, or **Share → Add to Home Screen** in Safari on iPhone. The installed app opens an **Open spook** form; paste a Spook link to use it. Issuer pages do not advertise the spender manifest.
+
+The spender requires an internet connection. Camera access, signing, and payment confirmation use the foreground flow. Installation and storage behavior vary by platform: an external Spook link may open in the browser, and an installed app may have separate pending-payment storage. Verify installation, camera access, and payment recovery on physical devices before release.
 
 ## Testing
 
