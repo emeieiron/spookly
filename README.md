@@ -366,6 +366,8 @@ pnpm indexer:dev                                   # mainnet GraphQL on :8081; t
 
 Then set `NEXT_PUBLIC_ENVIO_GRAPHQL_URL` to `http://localhost:8081/v1/graphql` for mainnet or `http://localhost:8080/v1/graphql` for testnet. The root command generates `config.generated.mainnet.yaml` or `config.generated.testnet.yaml` from the selected deployment. Mainnet uses a separate Docker volume and Postgres/Hasura stack on ports 5434/8081; testnet uses 5433/8080. Local mainnet database credentials stay in ignored `indexer/.env.mainnet.local`. Keep `config/deployments/mainnet-indexer.json` for reproducible destination start blocks. Hosted Envio needs the generated configuration and a separate database and endpoint for each environment.
 
+**Hosted mainnet indexer:** Envio's hosted service deploys `spookly-mainnet` from the `envio-mainnet` branch, with root directory `indexer` and config `config.generated.mainnet.yaml` (committed; regenerate it with `pnpm indexer:codegen` after a new factory deployment). Redeploy with `git push origin main:envio-mainnet`. Each deployment re-indexes from the start blocks, and the previous one keeps serving queries until it catches up.
+
 **Fully local testnet fork:** set `NEXT_PUBLIC_SPOOKLY_NETWORK=testnet`, run `anvil --fork-url https://testnet-rpc.monad.xyz`, deploy using `--broadcast` with `MONAD_RPC_URL=http://127.0.0.1:8545`, start the bundled minimal bundler with `pnpm dev:fork`, then run the app with `NEXT_PUBLIC_MONAD_RPC_URL` and `MONAD_RPC_URL` pointing at anvil and `BUNDLER_RPC_URL=http://localhost:4337`.
 
 ### Installable spender
