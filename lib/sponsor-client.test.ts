@@ -78,6 +78,7 @@ test("pending transfers restore the exact amount and recipient after reload", ()
     }),
   }
   savePendingSponsor(owner.address, {
+    previousIds: [],
     id: requestId,
     transaction: tx,
     request: sponsorRequest(
@@ -115,6 +116,17 @@ test("pre-submission outages preserve the self-funded path", async () => {
   assert.equal(readPendingSponsor(owner.address), null)
 })
 
+test("pending records require the current retry history field without migration defaults", () => {
+  storage.set(
+    `pippo:sponsor:10143:${owner.address.toLowerCase()}`,
+    JSON.stringify({ id: requestId })
+  )
+  assert.throws(
+    () => readPendingSponsor(owner.address),
+    /Invalid pending sponsorship record/
+  )
+})
+
 test("a reserve blocker stops before signing and cannot fall back to a native transaction", async () => {
   mock.method(globalThis, "fetch", async () =>
     Response.json(
@@ -134,6 +146,7 @@ test("a guarded retry keeps the exact cheque transaction and retains the earlier
     value: "0x0" as const,
   }
   savePendingSponsor(owner.address, {
+    previousIds: [],
     id: requestId,
     transaction: original,
     request: sponsorRequest(
@@ -188,6 +201,7 @@ test("a funding blocker on an accepted cheque preserves its pending request", as
     value: "0x0" as const,
   }
   savePendingSponsor(owner.address, {
+    previousIds: [],
     id: requestId,
     transaction: original,
     request: sponsorRequest(

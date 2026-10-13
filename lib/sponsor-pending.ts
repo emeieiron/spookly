@@ -9,11 +9,21 @@ export type PendingSponsor = {
   signature: string
   walletSignature: Hash
   hash?: Hash
-  previousIds?: string[]
+  previousIds: string[]
 }
 const key = (address: string) => `pippo:sponsor:10143:${address.toLowerCase()}`
-export const readPendingSponsor = (address: string): PendingSponsor | null =>
-  JSON.parse(localStorage.getItem(key(address)) ?? "null")
+export function readPendingSponsor(address: string): PendingSponsor | null {
+  const pending = JSON.parse(
+    localStorage.getItem(key(address)) ?? "null"
+  ) as PendingSponsor | null
+  if (
+    pending &&
+    (!Array.isArray(pending.previousIds) ||
+      pending.previousIds.some((id) => typeof id !== "string"))
+  )
+    throw new Error("Invalid pending sponsorship record.")
+  return pending
+}
 export const savePendingSponsor = (address: string, pending: PendingSponsor) =>
   localStorage.setItem(key(address), JSON.stringify(pending))
 export const clearPendingSponsor = (address: string) =>

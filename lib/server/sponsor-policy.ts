@@ -138,9 +138,6 @@ export async function validateSponsorTransaction(tx: SponsorTransaction) {
     throw new SponsorFundingError(reserveMessage(shortfall))
   }
   if (code && code !== "0x" && !isDelegated(code)) return false
-  // The app covers transaction gas, never the cheque's recipient fee allowance.
-  if (balance < BigInt(tx.value))
-    throw new Error("Not enough MON for this cheque's fee allowance.")
   const calls = sponsorRequest("", "", "", tx, 0, sponsorApproval(tx)).body
     .params.calls
   const [gas, fees] = await Promise.all([

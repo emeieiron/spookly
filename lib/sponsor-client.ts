@@ -44,7 +44,7 @@ export function createSponsorSender({
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     }
-    let retryOf: string | undefined
+    let retryOf: string | null = null
     if (pending) {
       const response = await fetch(
         `/api/sponsor?id=${encodeURIComponent(pending.id)}`,
@@ -71,7 +71,7 @@ export function createSponsorSender({
             phase: "prepare",
             walletId,
             transaction: tx,
-            ...(retryOf ? { retryOf } : {}),
+            retryOf,
           }),
         })
       } catch {
@@ -115,9 +115,7 @@ export function createSponsorSender({
         transaction: tx,
         signature,
         walletSignature,
-        ...(pending
-          ? { previousIds: [...(pending.previousIds ?? []), pending.id] }
-          : {}),
+        previousIds: pending ? [...pending.previousIds, pending.id] : [],
       }
       // Persist before submission; retries always use the same provider idempotency key.
       savePendingSponsor(from, pending)
@@ -147,12 +145,10 @@ export function createSponsorSender({
       if (response.ok) {
         const status = await response.json()
         if (status.blocked) throw new Error(status.error ?? pendingMessage)
-        if (
-          ["failed", "reverted", "execution_reverted"].includes(status.status)
-        ) {
+        if (["failed", "execution_reverted"].includes(status.status)) {
           // An older attempt for this same cheque may still execute. Retain
           // its draft until the unique cheque key is reconciled on-chain.
-          if (pending.previousIds?.length) throw new Error(pendingMessage)
+          if (pending.previousIds.length) throw new Error(pendingMessage)
           clearPendingSponsor(from)
           throw new FinalTransactionError(
             "The transaction failed. Please try again."

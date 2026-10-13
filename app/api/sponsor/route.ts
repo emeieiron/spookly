@@ -56,6 +56,8 @@ export async function POST(request: Request) {
       return json({ sponsored: false })
     const { user, wallets } = await authenticatedSponsorUser(request)
     if (input.phase === "prepare") {
+      if (input.retryOf !== null && typeof input.retryOf !== "string")
+        return json({ error: "Invalid request." }, 400)
       const tx = parseSponsorTransaction(input.transaction)
       const wallet = wallets.find(
         (w) =>
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
       )
       if (!wallet?.id)
         return json({ error: "Wallet does not belong to this account." }, 403)
-      if (input.retryOf !== undefined) {
+      if (input.retryOf !== null) {
         const previous = await readSponsor(input.retryOf)
         if (
           !previous ||
@@ -92,7 +94,7 @@ export async function POST(request: Request) {
         walletId: wallet.id,
         walletAddress: tx.from,
         expiresAt,
-        ...(input.retryOf ? { retryOf: input.retryOf as string } : {}),
+        retryOf: input.retryOf as string | null,
         request: sponsorRequest(
           process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
           wallet.id,
@@ -161,7 +163,7 @@ export async function POST(request: Request) {
         },
         502
       )
-    const transactionId = result.data?.transaction_id ?? result.transaction_id
+    const transactionId = result.data?.transaction_id
     if (typeof transactionId !== "string")
       throw new Error("Missing transaction id.")
     await saveSponsor(input.id, { ...record, transactionId })

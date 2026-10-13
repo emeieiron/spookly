@@ -38,6 +38,7 @@ describe(
   () => {
     let providerCalls = 0
     let uncertain = false
+    let providerFormat: "current" | "alternate" = "current"
     const redis = async (command: (string | number)[]) => {
       if (!container?.startsWith("pippo-sponsor-test-"))
         throw new Error("Use a disposable Pippo test container.")
@@ -55,6 +56,7 @@ describe(
       userId = "user",
       walletAddress = owner.address
     ): SponsorRecord => ({
+      retryOf: null,
       userId,
       walletId: "wallet",
       walletAddress,
@@ -99,6 +101,8 @@ describe(
           if (url.endsWith("/rpc")) {
             providerCalls++
             if (uncertain) throw new Error("Connection lost after broadcast")
+            if (providerFormat === "alternate")
+              return json({ transaction_id: "transaction" })
             return json({ data: { transaction_id: "transaction" } })
           }
           throw new Error(`Unexpected test request: ${url}`)
@@ -133,6 +137,7 @@ describe(
       await redis(["FLUSHDB"])
       providerCalls = 0
       uncertain = false
+      providerFormat = "current"
     })
     after(() => mock.restoreAll())
 
@@ -286,6 +291,34 @@ describe(
       uncertain = false
       assert.equal((await POST(request(input))).status, 200)
     })
+    test("only the documented provider response is accepted; an alternate shape preserves an uncertain request", async () => {
+      const requestId = id(),
+        item = record(requestId)
+      await reserveSponsor(requestId, item, { wallet: 5, user: 5, app: 100 })
+      const walletSignature = await owner.signMessage({
+        message: sponsorProofMessage(item.request),
+      })
+      providerFormat = "alternate"
+      const input = {
+        phase: "submit",
+        id: requestId,
+        signature: "user-key-signature",
+        walletSignature,
+      }
+      assert.equal((await POST(request(input))).status, 503)
+      assert.equal((await readSponsor(requestId))?.transactionId, undefined)
+      assert.equal(providerCalls, 1)
+      providerFormat = "current"
+      assert.equal((await POST(request(input))).status, 200)
+    })
+
+    test("prepare requires an explicit retry state instead of an omitted legacy field", async () => {
+      assert.equal(
+        (await POST(request({ phase: "prepare", walletId: "wallet" }))).status,
+        400
+      )
+      assert.equal(providerCalls, 0)
+    })
     test("cheque retry reserves a new bounded attempt only for the identical absent cheque", async () => {
       const book = getAddress("0x1111111111111111111111111111111111111111")
       const tx = {
@@ -408,6 +441,7 @@ describe(
       const foreign = await POST(
         request({
           phase: "prepare",
+          retryOf: null,
           walletId: "wallet",
           transaction: {
             from: other.address,
@@ -422,6 +456,7 @@ describe(
       const wrongChain = await POST(
         request({
           phase: "prepare",
+          retryOf: null,
           walletId: "wallet",
           transaction: {
             from: owner.address,

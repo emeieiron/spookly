@@ -8,7 +8,7 @@ export type SponsorRecord = {
   request: SponsorRequest
   expiresAt: number
   transactionId?: string
-  retryOf?: string
+  retryOf: string | null
 }
 
 // Reserve every limit and store the exact signed request in one atomic operation.
@@ -97,7 +97,11 @@ export async function readSponsor(id: string): Promise<SponsorRecord | null> {
   if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id))
     throw new Error("Invalid request.")
   const value = await redisCommand<string | null>(["GET", sponsorRecordKey(id)])
-  return value ? (JSON.parse(value) as SponsorRecord) : null
+  if (!value) return null
+  const record = JSON.parse(value) as SponsorRecord
+  if (record.retryOf !== null && typeof record.retryOf !== "string")
+    throw new Error("Invalid sponsorship record.")
+  return record
 }
 
 export async function saveSponsor(id: string, record: SponsorRecord) {

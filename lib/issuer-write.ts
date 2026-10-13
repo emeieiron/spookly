@@ -38,7 +38,12 @@ export async function prepareChequeWrite(
   const spare = book?.spareGas ?? 0n
   const value = FEE_ALLOWANCE > spare ? FEE_ALLOWANCE - spare : 0n
   const to = book?.address ?? FACTORY
-  const permit = pull > 0n ? await signPermit(client, to, pull) : NO_PERMIT
+  const code =
+    pull > 0n ? await publicClient.getCode({ address: account }) : undefined
+  const permit =
+    pull > 0n && (!code || code === "0x")
+      ? await signPermit(client, to, pull)
+      : NO_PERMIT
   const sealed = vault ? await sealChequeKey(vault, key) : "0x"
   const data = book
     ? encodeFunctionData({
@@ -71,8 +76,8 @@ export async function prepareNativeChequeWrite(
 ) {
   const pull = BigInt(draft.pull)
   if (pull === 0n) return
-  // Exact approvals preserve compatibility when sponsorship is unavailable after
-  // EIP-7702 delegation. Ordinary EOAs keep the original one-transaction permit flow.
+  // Wallets with code fund through an exact allowance. Ordinary wallets use
+  // the permit already stored in the draft.
   const code = await publicClient.getCode({ address: client.account.address })
   if (!code || code === "0x") return
   const allowance = await publicClient.readContract({

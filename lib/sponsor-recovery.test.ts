@@ -53,6 +53,7 @@ const transaction = {
   }),
 }
 const record = {
+  retryOf: null,
   userId: "user",
   walletId: "wallet",
   walletAddress: owner,

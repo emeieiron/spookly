@@ -65,8 +65,8 @@ export function sponsorRequest(
       sponsor: true,
       params: {
         calls: [
-          // EIP-7702 wallets need ERC-1271 signatures. Our deployed cheque contracts
-          // accept only v/r/s permits, so approve the exact pull in this same atomic batch.
+          // Delegated wallets authorize the exact USDC pull through an
+          // approval in the same atomic batch as the cheque write.
           ...(approval > 0n
             ? [
                 {
