@@ -21,6 +21,7 @@ import {
 import { spookBookAbi } from "./abi"
 import { forwardingFee } from "./cctp"
 import { ENTRY_POINT, monad } from "./chain"
+import type { IndexedReceipt } from "./hypersync"
 import { isLocal, type Network } from "./networks"
 
 export const publicClient = createPublicClient({
@@ -239,17 +240,48 @@ const userOperationEvent = getAbiItem({
   name: "UserOperationEvent",
 })
 
+const settled = (success: boolean | undefined, transactionHash: Hash) => {
+  if (!success)
+    throw new Error("The payment didn't go through. No USDC was sent.")
+  return transactionHash
+}
+
+async function indexedReceipt(
+  receiptUrl: string,
+  userOpHash: Hash,
+  fromBlock: bigint
+): Promise<IndexedReceipt | null> {
+  try {
+    const response = await fetch(
+      `${receiptUrl}?userOpHash=${userOpHash}&fromBlock=${fromBlock}`,
+      { cache: "no-store", signal: AbortSignal.timeout(10_000) }
+    )
+    return response.ok ? await response.json() : null
+  } catch {
+    return null
+  }
+}
+
 // Reads EntryPoint logs directly so confirmation doesn't depend on the bundler. Public Monad RPC caps
-// eth_getLogs at 100 blocks, so scan in chunks from the block before submission.
+// eth_getLogs at 100 blocks, so scan in chunks from the block before submission. When that's more than one
+// chunk behind (after a reload, say), HyperSync searches the gap in one request first.
 export async function waitForPayment(
   userOpHash: Hash,
   fromBlock: bigint,
-  timeoutMs = 120_000
+  timeoutMs = 120_000,
+  receiptUrl: string | null = "/api/payment-receipt"
 ): Promise<Hash> {
   const deadline = Date.now() + timeoutMs
   let from = fromBlock
   while (Date.now() < deadline) {
     const latest = await publicClient.getBlockNumber()
+    if (receiptUrl && latest - from > 99n) {
+      const indexed = await indexedReceipt(receiptUrl, userOpHash, from)
+      if (indexed?.transactionHash)
+        return settled(indexed.success, indexed.transactionHash)
+      if (indexed && BigInt(indexed.scannedTo) > from)
+        from = BigInt(indexed.scannedTo)
+    }
     while (from <= latest) {
       const to = from + 99n < latest ? from + 99n : latest
       const [log] = await publicClient.getLogs({
@@ -259,11 +291,7 @@ export async function waitForPayment(
         fromBlock: from,
         toBlock: to,
       })
-      if (log) {
-        if (!log.args.success)
-          throw new Error("The payment didn't go through. No USDC was sent.")
-        return log.transactionHash
-      }
+      if (log) return settled(log.args.success, log.transactionHash)
       from = to + 1n
     }
     await new Promise((r) => setTimeout(r, 1_500))

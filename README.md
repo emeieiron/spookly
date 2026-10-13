@@ -188,7 +188,7 @@ sequenceDiagram
 - **Checks before signing.** The payment is simulated from the EntryPoint, and its maximum cost is checked against both the spook's fee budget and the book's deposit. Problems show up as plain-language messages instead of failed transactions.
 - **Fees.** The UserOperation is built with viem's account-abstraction tools. Its fee includes a 50% base-fee buffer and a priority fee 20% above the bundler's quote, so it lands promptly.
 - **Bundler proxy.** The proxy relays only bundler methods, only for EntryPoint v0.7, and only `pay` or `payCrossChain` operations from spook books the factory created. It confirms the last point on-chain with `bookOf(owner) == sender`. The bundler API key is useless to anyone trying to relay anything else. Bundler errors such as AA21, AA22 and AA24 are turned into readable messages.
-- **Confirmation.** The app reads the EntryPoint's `UserOperationEvent` logs directly, in 100-block windows to respect the public RPC limit. Confirmation doesn't depend on the bundler. A payment in progress survives page reloads.
+- **Confirmation.** The app reads the EntryPoint's `UserOperationEvent` logs directly, in 100-block windows to respect the public RPC limit. Confirmation doesn't depend on the bundler. A payment in progress survives page reloads. When the search falls more than one window behind, as after a reload, a server route asks Envio HyperSync for the event across the whole gap in one request, and the RPC scan covers only the newest blocks. Without a HyperSync token, or if HyperSync is unavailable, the RPC scan does everything.
 
 ### Paying across networks with CCTP
 
@@ -333,6 +333,7 @@ Add the app's origin to Privy. Configure `BUNDLER_RPC_URL` with an EntryPoint 0.
 | `MONAD_RPC_URL`, `NEXT_PUBLIC_MONAD_RPC_URL` | Optional                         | RPC overrides for the selected network                                    |
 | `DEPLOYER_PRIVATE_KEY`                       | Broadcast deployment, smoke test | Key holding MON and, for the smoke test, USDC in the selected environment |
 | `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`              | Optional                         | Matching indexer endpoint for history and stats                           |
+| `ENVIO_API_TOKEN`                            | Optional                         | Server-only HyperSync token for confirming payments after a reload        |
 | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL` | Optional                        | Site and app origins; default to `spookly.xyz` and `app.spookly.xyz`      |
 
 On testnet, get funds from the [Circle USDC faucet](https://faucet.circle.com) and [Monad faucet](https://faucet.monad.xyz). Production hosting needs its own service credentials and matching indexer endpoint; local environment files do not configure the deployment host.
