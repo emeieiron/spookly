@@ -235,6 +235,8 @@ Passkeys are bound to the site's domain, and new passkeys are named with their c
 
 ### Issuer accounts and Monad-safe transactions
 
+Optional bounded issuer gas sponsorship and wallet authenticator MFA are documented in [Privy testnet setup](docs/privy-testnet.md). Sponsorship stays on Monad testnet and uses server-only configuration.
+
 - **Privy sign-in.** Google, email or an existing wallet. Email and social sign-ins create an embedded wallet with no seed phrase. Wallet pop-ups are disabled, and the app's own buttons are the confirmation.
 - **Gas checks for Monad.** Monad charges gas by the gas _limit_. It also includes a transaction that can afford its gas but not its value, then reverts it, so the gas is lost. Every issuer transaction is therefore estimated as if funded, using a balance state override because Monad refuses to estimate a short balance. The value plus `gasLimit × maxFeePerGas` is checked against the real balance before anything is signed.
 - **Live balances.** Wallet and cheque balances refresh every 10 seconds and whenever the tab regains focus.

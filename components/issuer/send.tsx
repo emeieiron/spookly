@@ -32,8 +32,13 @@ import {
   networkByChainId,
   type Network,
 } from "@/lib/networks"
-import { sendChecked, type SignerClient } from "@/lib/wallet-send"
+import {
+  sendChecked,
+  type SignerClient,
+  type SponsorSender,
+} from "@/lib/wallet-send"
 import { useIssuer } from "./app"
+import { readPendingTransfer } from "@/lib/sponsor-pending"
 import { Bar, Page, PageTitle } from "./ui"
 
 type Sent = {
@@ -46,7 +51,7 @@ type Sent = {
 }
 
 export function Send() {
-  const { wallet, refresh, goBack } = useIssuer()
+  const { wallet, refresh, goBack, sponsor } = useIssuer()
   if (!wallet)
     return (
       <Page>
@@ -62,6 +67,7 @@ export function Send() {
         balance={wallet.usdc}
         onDone={goBack}
         onSent={refresh}
+        sponsor={sponsor}
       />
     </Page>
   )
@@ -72,14 +78,19 @@ function SendForm({
   balance,
   onDone,
   onSent,
+  sponsor,
 }: {
   client: SignerClient
   balance: bigint
   onDone: () => void
   onSent: () => void
+  sponsor: SponsorSender
 }) {
-  const [amountText, setAmountText] = useState("")
-  const [recipient, setRecipient] = useState("")
+  const pending = readPendingTransfer(client.account.address)
+  const [amountText, setAmountText] = useState(
+    pending ? formatUnits(pending.amount, 6) : ""
+  )
+  const [recipient, setRecipient] = useState(pending?.recipient ?? "")
   const [chainId, setChainId] = useState(NETWORKS[0].chainId)
   const [fee, setFee] = useState<{ chainId: number; value: bigint } | null>(
     null
@@ -105,11 +116,16 @@ function SendForm({
         ? balance - currentFee
         : 0n
   const validRecipient = isAddress(recipient)
+  const resuming =
+    pending &&
+    local &&
+    amount === pending.amount &&
+    recipient.toLowerCase() === pending.recipient.toLowerCase()
   const problem =
     error ??
     (recipient && !validRecipient
       ? "That isn't a valid address."
-      : total !== null && total > balance
+      : !resuming && total !== null && total > balance
         ? `Your wallet has ${formatUsdc(balance)}.`
         : "")
 
@@ -167,7 +183,9 @@ function SendForm({
             abi: erc20Abi,
             functionName: "transfer",
             args: [to, amount],
-          })
+          }),
+          0n,
+          sponsor
         )
       } else {
         const allowance = await publicClient.readContract({
@@ -184,7 +202,9 @@ function SendForm({
               abi: erc20Abi,
               functionName: "approve",
               args: [TOKEN_MESSENGER, total],
-            })
+            }),
+            0n,
+            sponsor
           )
         hash = await sendChecked(
           client,
@@ -202,7 +222,9 @@ function SendForm({
               STANDARD_FINALITY,
               FORWARD_HOOK,
             ],
-          })
+          }),
+          0n,
+          sponsor
         )
       }
       setSent({ amount, recipient: to, network, hash, delivered: local })
@@ -352,13 +374,15 @@ function SendForm({
             busy ||
             amount === null ||
             total === null ||
-            total > balance ||
+            (!resuming && total > balance) ||
             !validRecipient
           }
           onClick={submit}
         >
           {busy ? (
             <Loader2 className="animate-spin" />
+          ) : resuming ? (
+            "Check transaction"
           ) : (
             `Send ${amount ? formatUsdc(amount) : ""}`
           )}

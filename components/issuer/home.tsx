@@ -4,6 +4,7 @@ import { ViewTransition, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowDownLeft, ArrowUpRight, KeyRound, Loader2 } from "lucide-react"
+import { formatUnits } from "viem"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,16 +16,19 @@ import { formatMon, formatUsdc, parseUsdc } from "@/lib/money"
 import { FundingFlow } from "@/components/funding/flow"
 import { useFundingSession } from "@/components/funding/use-session"
 import { fundingTargets } from "@/lib/funding/requirements"
-import { pendingWriteDraft, writeCheque } from "@/lib/issuer-write"
+import { writeCheque } from "@/lib/issuer-write"
+import { readWriteDraft, type WriteDraft } from "@/lib/write-draft"
+import { readPendingSponsor } from "@/lib/sponsor-pending"
 import { fetchWallet, useIssuer, type Wallet } from "./app"
 import { Bar, ChequeRow, ErrorLine, Page } from "./ui"
 
 export function Home() {
-  const { wallet, busy, run, setCopied, vault } = useIssuer()
+  const { wallet, busy, run, setCopied, vault, sponsor } = useIssuer()
   const router = useRouter()
 
   if (!wallet) return <HomeSkeleton />
-  const { book } = wallet
+  const { book, account } = wallet
+  const pendingWrite = readWriteDraft(account)
   // Active holds every cheque that still holds money or fees; history holds closed ones.
   const open = book?.cheques.filter((c) => c.active) ?? []
   const closedCount = (book?.cheques.length ?? 0) - open.length
@@ -32,7 +36,7 @@ export function Home() {
     run("write", async ({ account, client }) => {
       // Read after settlement, so funding never uses a stale wallet or book balance.
       const current = await fetchWallet(account, client)
-      const result = await writeCheque(current, amount, days, vault)
+      const result = await writeCheque(current, amount, days, vault, sponsor)
       const copied = await navigator.clipboard
         ?.writeText(
           chequeLink(window.location.origin, result.bookAddress, result.key)
@@ -69,6 +73,9 @@ export function Home() {
       </div>
 
       <WriteCheque
+        key={`${account}:${pendingWrite?.signer ?? "new"}`}
+        pendingWrite={pendingWrite}
+        checking={!!readPendingSponsor(account) || !!pendingWrite?.hash}
         busy={busy === "write"}
         disabled={!!busy || !FACTORY}
         wallet={wallet}
@@ -191,21 +198,23 @@ function WriteCheque({
   busy,
   disabled,
   wallet,
+  pendingWrite,
+  checking,
   onWrite,
 }: {
   busy: boolean
   disabled: boolean
   wallet: Wallet
+  pendingWrite: WriteDraft | null
+  checking: boolean
   onWrite: (amount: bigint, days: number) => Promise<boolean>
 }) {
   const { session, loaded } = useFundingSession(wallet.account)
   const [fundingOpen, setFundingOpen] = useState(false)
-  const [amountText, setAmountText] = useState(
-    () => pendingWriteDraft(wallet.account)?.amount ?? ""
+  const [amountText, setAmountText] = useState(() =>
+    pendingWrite ? formatUnits(BigInt(pendingWrite.amount), 6) : ""
   )
-  const [days, setDays] = useState(
-    () => pendingWriteDraft(wallet.account)?.days ?? 7
-  )
+  const [days, setDays] = useState(() => pendingWrite?.days ?? 7)
   const draftAmount =
     session?.purpose === "write"
       ? (session.draft?.amount ?? amountText)
@@ -214,20 +223,26 @@ function WriteCheque({
     session?.purpose === "write" ? (session.draft?.days ?? days) : days
   const amount = parseUsdc(draftAmount)
   const max = wallet.usdc + (wallet.book?.available ?? 0n)
-  const targets = amount
-    ? fundingTargets(
-        amount,
-        wallet.usdc,
-        wallet.mon,
-        wallet.book?.available,
-        wallet.book?.spareGas,
-        wallet.gasReserve
-      )
-    : []
+  const resuming =
+    !!pendingWrite &&
+    amount?.toString() === pendingWrite.amount &&
+    draftDays === pendingWrite.days
+  const targets =
+    amount && !resuming
+      ? fundingTargets(
+          amount,
+          wallet.usdc,
+          wallet.mon,
+          wallet.book?.available,
+          wallet.book?.spareGas,
+          wallet.gasReserve,
+          wallet.delegated
+        )
+      : []
   const shortfall = targets.length > 0
   const showFunding = IS_MAINNET && (!!session || (shortfall && fundingOpen))
-  const pending = !!session
-  const tooMuch = amount !== null && amount > max
+  const pending = !!session || !!pendingWrite
+  const tooMuch = !resuming && amount !== null && amount > max
   return (
     <section className="flex shrink-0 flex-col gap-4">
       <Label className="cursor-text border-b pb-2 tracking-normal normal-case select-auto">
@@ -302,6 +317,8 @@ function WriteCheque({
         >
           {busy ? (
             <Loader2 className="animate-spin" />
+          ) : checking && resuming ? (
+            "Check cheque"
           ) : tooMuch ? (
             `Only ${formatUsdc(max)} available`
           ) : shortfall ? (

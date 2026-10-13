@@ -9,6 +9,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 
 interface Vm {
     function envAddress(string calldata) external returns (address);
+    function etch(address, bytes calldata) external;
     function addr(uint256) external pure returns (address);
     function sign(uint256, bytes32) external pure returns (uint8, bytes32, bytes32);
     function prank(address) external;

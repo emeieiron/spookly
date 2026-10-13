@@ -39,8 +39,11 @@ import {
 import { FACTORY, USDC, erc20Abi, monad } from "@/lib/chain"
 import { errorMessage, publicClient } from "@/lib/cheque-payment"
 import { shortAddress } from "@/lib/money"
-import type { SignerClient } from "@/lib/wallet-send"
+import type { SignerClient, SponsorSender } from "@/lib/wallet-send"
 import { creationGasReserve } from "@/lib/funding/requirements"
+import { isDelegated } from "@/lib/monad-reserve"
+import { WalletProtection } from "./wallet-protection"
+import { useSponsorship } from "./use-sponsorship"
 
 export type Wallet = {
   account: Address
@@ -48,12 +51,14 @@ export type Wallet = {
   usdc: bigint
   mon: bigint
   gasReserve: bigint
+  delegated: boolean
   book: Book | null
   checkedAt: number
 }
 
 type Issuer = {
   wallet: Wallet | null
+  sponsor: SponsorSender
   busy: string | null
   error: string | null
   setError: (error: string | null) => void
@@ -95,7 +100,7 @@ export async function fetchWallet(
 ): Promise<Wallet> {
   if ((await publicClient.getChainId()) !== monad.id)
     throw new Error("The wallet service is on the wrong network.")
-  const [usdc, mon, book, fees] = await Promise.all([
+  const [usdc, mon, book, fees, code] = await Promise.all([
     publicClient.readContract({
       address: USDC,
       abi: erc20Abi,
@@ -105,6 +110,7 @@ export async function fetchWallet(
     publicClient.getBalance({ address: account }),
     FACTORY ? readBook(FACTORY, account) : null,
     publicClient.estimateFeesPerGas(),
+    publicClient.getCode({ address: account }),
   ])
   return {
     account,
@@ -113,6 +119,7 @@ export async function fetchWallet(
     mon,
     book,
     gasReserve: creationGasReserve(fees.maxFeePerGas, !!book),
+    delegated: isDelegated(code),
     checkedAt: Date.now(),
   }
 }
@@ -127,6 +134,18 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     wallets.find(
       (w) => w.address.toLowerCase() === user?.wallet?.address?.toLowerCase()
     ) ?? wallets[0]
+  const embedded = active?.walletClientType === "privy"
+  const embeddedAccount = user?.linkedAccounts.find(
+    (w) =>
+      w.type === "wallet" &&
+      w.walletClientType === "privy" &&
+      w.address.toLowerCase() === active?.address.toLowerCase()
+  )
+  const sponsor = useSponsorship(
+    embeddedAccount?.type === "wallet"
+      ? (embeddedAccount.id ?? undefined)
+      : undefined
+  )
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -156,6 +175,8 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
         await target.switchChain(monad.id)
         const provider = (await target.getEthereumProvider()) as EIP1193Provider
         const account = getAddress(target.address)
+        if ((await publicClient.getChainId()) !== monad.id)
+          throw new Error("The wallet service is on the wrong network.")
         if (live) await load(account, walletClientFor(account, provider))
       } catch (e) {
         if (live) setError(errorMessage(e))
@@ -317,6 +338,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     <IssuerContext.Provider
       value={{
         wallet: connected ? wallet : null,
+        sponsor,
         busy,
         error,
         setError,
@@ -339,6 +361,11 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
       <AppFrame
         account={connected ? wallet.account : undefined}
         onSignOut={signedIn ? signOut : undefined}
+        protection={
+          signedIn && embedded ? (
+            <WalletProtection disabled={!!busy || !connected} />
+          ) : undefined
+        }
       >
         {!ready ? null : !authenticated ? (
           <div className="flex flex-col gap-6">
@@ -371,10 +398,12 @@ export function AppFrame({
   children,
   account,
   onSignOut,
+  protection,
 }: {
   children?: React.ReactNode
   account?: Address
   onSignOut?: () => void
+  protection?: React.ReactNode
 }) {
   const [confirming, setConfirming] = useState(false)
   return (
@@ -410,6 +439,7 @@ export function AppFrame({
         ) : (
           <div className="flex items-center gap-1">
             {account && <CopyAddress account={account} />}
+            {protection}
             {onSignOut && (
               <Button
                 size="icon-sm"
