@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { randomBytes } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { resolve } from "node:path"
@@ -10,7 +10,10 @@ if (!deployment.factory || deployment.blockNumber == null)
     `Deploy a factory on ${appNetwork.name} before starting its indexer`
   )
 // Hosted Envio builds only the indexer directory, so it carries the network facts its handlers need.
-const profiles = JSON.parse(readFileSync("config/networks.json", "utf8"))
+const profiles = JSON.parse(
+  readFileSync(new URL("../config/networks.json", import.meta.url), "utf8")
+)
+mkdirSync("indexer/src", { recursive: true })
 writeFileSync(
   "indexer/src/networks.json",
   JSON.stringify(
@@ -20,7 +23,10 @@ writeFileSync(
         {
           chainId: p.chainId,
           tokenMessenger: p.tokenMessenger,
-          payouts: p.payouts.map(({ chainId, domain }) => ({ chainId, domain })),
+          payouts: p.payouts.map(({ chainId, domain }) => ({
+            chainId,
+            domain,
+          })),
         },
       ])
     ),
