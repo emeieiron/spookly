@@ -17,12 +17,7 @@ import {
 } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import {
-  useMfa,
-  usePrivy,
-  useRegisterMfaListener,
-  useWallets,
-} from "@privy-io/react-auth"
+import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { Check, Copy, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -134,13 +129,6 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
       ? (embeddedAccount.id ?? undefined)
       : undefined
   )
-  const { promptMfa } = useMfa()
-  // Wallet approval screens are hidden; MFA challenges must still open their own verification modal.
-  useRegisterMfaListener({
-    onMfaRequired: async () => {
-      await promptMfa()
-    },
-  })
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
