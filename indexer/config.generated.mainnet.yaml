@@ -1,0 +1,74 @@
+name: spookly-mainnet
+description: Spookly mainnet spooks and CCTP deliveries
+rollback_on_reorg: true
+address_format: lowercase
+
+contracts:
+  - name: SpookBookFactory
+    events:
+      - event: "BookCreated(address indexed owner, address book)"
+  - name: SpookBook
+    events:
+      - event: "SpookCreated(address indexed signer, uint256 amount, uint64 expiry, uint256 gasBudget)"
+      - event: "SpookCancelled(address indexed signer, uint256 released)"
+      - event: "Paid(address indexed signer, address indexed recipient, uint256 amount)"
+      - event: "PaidCrossChain(address indexed signer, uint32 indexed domain, bytes32 recipient, uint256 amount, uint256 maxFee)"
+  # Circle CCTP MessageTransmitterV2, at the same address on every testnet. Its MessageReceived carries the burn
+  # message, which names the paying spook book as messageSender.
+  - name: MessageTransmitter
+    events:
+      - event: "MessageReceived(address indexed caller, uint32 sourceDomain, bytes32 indexed nonce, bytes32 sender, uint32 indexed finalityThresholdExecuted, bytes messageBody)"
+
+# Source indexing starts at the configured factory deployment.
+chains:
+  - id: 143
+    start_block: 113140121
+    contracts:
+      - name: SpookBookFactory
+        address: "0xe10fae40a38a35d25fd6e01819a9bd285307f396"
+      - name: SpookBook
+  - id: 8453
+    start_block: 52559762
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 42161
+    start_block: 514484025
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 10
+    start_block: 158155047
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 137
+    start_block: 95469040
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 43114
+    start_block: 97459185
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 130
+    start_block: 61160510
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 59144
+    start_block: 32313889
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 480
+    start_block: 36286617
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"
+  - id: 1
+    start_block: 26184762
+    contracts:
+      - name: MessageTransmitter
+        address: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64"

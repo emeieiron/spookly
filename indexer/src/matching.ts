@@ -1,14 +1,9 @@
-import profiles from "../../config/networks.json" with { type: "json" }
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
-// Read the config actually passed to Envio. Never infer mainnet from an unrelated shell environment.
-const configFile = process.env.ENVIO_CONFIG
-  ? resolve(process.env.ENVIO_CONFIG)
-  : new URL("../config.yaml", import.meta.url)
-const config = readFileSync(configFile, "utf8")
-const profile = config.includes("name: spookly-mainnet")
-  ? profiles.mainnet
-  : profiles.testnet
+import { indexer } from "envio"
+// A copy of config/networks.json, written by scripts/indexer-config.mjs, so the indexer directory deploys on its own.
+import profiles from "./networks.json" with { type: "json" }
+// The name comes from the config Envio actually loaded. Never infer mainnet from an unrelated shell environment.
+const profile =
+  indexer.name === "spookly-mainnet" ? profiles.mainnet : profiles.testnet
 export const MONAD_CHAIN = profile.chainId
 export const MONAD_DOMAIN = 15
 export const STATS_ID = `global-${MONAD_CHAIN}`

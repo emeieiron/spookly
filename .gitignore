@@ -47,6 +47,8 @@ next-env.d.ts
 
 /.smoke-spook-*.json
 /indexer/config.generated.*.yaml
+# Envio's hosted service deploys the mainnet indexer from this file.
+!/indexer/config.generated.mainnet.yaml
 
 # local development guidance and reference artifacts
 /AGENTS.md

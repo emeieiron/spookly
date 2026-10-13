@@ -9,6 +9,25 @@ if (!deployment.factory || deployment.blockNumber == null)
   throw new Error(
     `Deploy a factory on ${appNetwork.name} before starting its indexer`
   )
+// Hosted Envio builds only the indexer directory, so it carries the network facts its handlers need.
+const profiles = JSON.parse(readFileSync("config/networks.json", "utf8"))
+writeFileSync(
+  "indexer/src/networks.json",
+  JSON.stringify(
+    Object.fromEntries(
+      Object.entries(profiles).map(([name, p]) => [
+        name,
+        {
+          chainId: p.chainId,
+          tokenMessenger: p.tokenMessenger,
+          payouts: p.payouts.map(({ chainId, domain }) => ({ chainId, domain })),
+        },
+      ])
+    ),
+    null,
+    2
+  ) + "\n"
+)
 const template = readFileSync("indexer/config.yaml", "utf8")
 let config
 if (appNetwork.name === "testnet")

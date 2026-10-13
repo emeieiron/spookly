@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
+import profiles from "./networks.json" with { type: "json" }
 import {
   CHAIN_BY_DOMAIN,
   DOMAIN_BY_CHAIN,
@@ -52,6 +54,26 @@ test("a different amount or payee never matches", () => {
   assert.notEqual(key, matchKey(burn.sender, 6, burn.recipient, 161367n))
   assert.notEqual(key, matchKey(burn.sender, 6, BOOK, burn.burned))
   assert.notEqual(key, matchKey(burn.sender, 3, burn.recipient, burn.burned))
+})
+
+test("the indexer's network copy matches config/networks.json", () => {
+  const source = JSON.parse(
+    readFileSync(new URL("../../config/networks.json", import.meta.url), "utf8")
+  )
+  for (const name of ["mainnet", "testnet"] as const) {
+    const copy = profiles[name]
+    assert.equal(copy.chainId, source[name].chainId)
+    assert.equal(copy.tokenMessenger, source[name].tokenMessenger)
+    assert.deepEqual(
+      copy.payouts,
+      source[name].payouts.map(
+        ({ chainId, domain }: { chainId: number; domain: number }) => ({
+          chainId,
+          domain,
+        })
+      )
+    )
+  }
 })
 
 test("every destination maps to its CCTP domain and back", () => {
