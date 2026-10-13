@@ -8,6 +8,7 @@ import { BackTitle } from "@/components/back-title"
 import { ExternalLink } from "@/components/external-link"
 import { NetworkSelect } from "@/components/network-select"
 import { ChainName } from "@/components/chain-name"
+import { OpenCheque } from "@/components/spender/open-cheque"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -66,6 +67,7 @@ const loadPending = (signer: Address): Pending | null => {
 
 export function ChequeHolder() {
   const [cheque, setCheque] = useState<Cheque | null>()
+  const [emptyLink, setEmptyLink] = useState(false)
   const [state, setState] = useState<ChequeState | null>(null)
   const [stage, setStage] = useState<Stage>({ kind: "scan" })
   // The confirm step gets its own history entry, so the phone's back gesture returns to the scanner.
@@ -85,6 +87,7 @@ export function ChequeHolder() {
 
   useEffect(() => {
     const read = () => {
+      setEmptyLink(!window.location.hash)
       const parsed = readChequeFragment(window.location.hash)
       if (!parsed) return setCheque(null)
       const signer = privateKeyToAccount(parsed.key).address
@@ -161,9 +164,13 @@ export function ChequeHolder() {
   if (cheque === null)
     return (
       <Shell>
-        <Message title="This link isn't a cheque">
-          Ask the issuer to share the full link again.
-        </Message>
+        {emptyLink ? (
+          <OpenCheque />
+        ) : (
+          <Message title="This link isn't a cheque">
+            Ask the issuer to share the full link again.
+          </Message>
+        )}
       </Shell>
     )
 
@@ -584,7 +591,7 @@ function PaymentProgress({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-md min-w-0 flex-col gap-4 px-4 py-6">
+    <main className="mx-auto flex min-h-svh w-full max-w-md min-w-0 flex-col gap-4 pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]">
       <header className="mb-2 text-sm font-semibold tracking-widest uppercase">
         Pippo cheque
       </header>
