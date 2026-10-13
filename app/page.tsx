@@ -17,6 +17,7 @@ import { ExternalLink } from "@/components/external-link"
 import { ProductMock } from "@/components/landing/product-mock"
 import { buttonVariants } from "@/components/ui/button"
 import { activityStats, type ActivityStats } from "@/lib/activity"
+import { APP_URL } from "@/lib/hosts"
 import { formatUsdc } from "@/lib/money"
 import { NETWORKS } from "@/lib/networks"
 import { cn } from "@/lib/utils"
@@ -196,13 +197,15 @@ const OpenApp = ({
   children: React.ReactNode
   size?: "sm" | "lg"
 }) => (
-  <Link
-    href="/app"
+  <a
+    href={APP_URL}
+    target="_blank"
+    rel="noreferrer"
     className={cn(buttonVariants({ size }), size === "lg" && "h-12 px-7")}
   >
     {children}
     <ArrowRight data-icon="inline-end" />
-  </Link>
+  </a>
 )
 
 export default async function Landing() {

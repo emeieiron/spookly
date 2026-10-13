@@ -314,8 +314,10 @@ Factory records live in `config/deployments`. Each issuer's SpookBook is created
 ```bash
 pnpm install
 cp .env.example .env.local
-pnpm dev                       # http://localhost:3000
+pnpm dev                       # http://localhost:3000, app at /app
 ```
+
+The site and the app share one deployment and are split by host: `spookly.xyz` serves the landing page and `app.spookly.xyz` serves the app, with spook links at `app.spookly.xyz/spook`. `proxy.ts` routes each host and redirects old `/app` and `/spook` URLs on the site to the app host. In development and on hosts without an app subdomain, such as preview deployments, the app stays under `/app`, because Privy's embedded wallet needs HTTPS or plain `localhost`.
 
 Fill in `.env.local` before starting. Mainnet is the default; set `NEXT_PUBLIC_SPOOKLY_NETWORK=testnet` to use the recorded testnet deployment. Restart or rebuild after changing networks.
 
@@ -331,6 +333,7 @@ Add the app's origin to Privy. Configure `BUNDLER_RPC_URL` with an EntryPoint 0.
 | `MONAD_RPC_URL`, `NEXT_PUBLIC_MONAD_RPC_URL` | Optional                         | RPC overrides for the selected network                                    |
 | `DEPLOYER_PRIVATE_KEY`                       | Broadcast deployment, smoke test | Key holding MON and, for the smoke test, USDC in the selected environment |
 | `NEXT_PUBLIC_ENVIO_GRAPHQL_URL`              | Optional                         | Matching indexer endpoint for history and stats                           |
+| `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL` | Optional                        | Site and app origins; default to `spookly.xyz` and `app.spookly.xyz`      |
 
 On testnet, get funds from the [Circle USDC faucet](https://faucet.circle.com) and [Monad faucet](https://faucet.monad.xyz). Production hosting needs its own service credentials and matching indexer endpoint; local environment files do not configure the deployment host.
 
@@ -386,5 +389,5 @@ The spender requires an internet connection. Camera access, signing, and payment
 - **Mainnet hosting setup required.** Configure mainnet credentials and indexer endpoints on the deployment host. Live Aurora funding requires a Studio key; the integration has not yet been verified with a live transfer.
 - **Monad escrow.** Spooks are created and escrowed on Monad and pay out to ten networks. Aurora can fund the issuer from other supported chains.
 - **Older links aren't backed up.** Links created before a passkey is set up stay on the device that wrote them. Those spooks can still be cancelled for a refund.
-- **Passkeys are tied to the site's domain.** Links backed up on one domain can't be restored from another.
+- **Passkeys are tied to the site's domain.** Passkeys belong to `spookly.xyz`, so they work on the site and the app subdomain, but links backed up on one domain can't be restored from another.
 - **Fixed fee allowance.** Each spook reserves 0.3 MON for gas, and whatever it doesn't use is refunded on cancel.

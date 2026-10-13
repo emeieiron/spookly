@@ -22,6 +22,7 @@ import {
 } from "@/lib/funding/model"
 import { sourceChain } from "@/lib/funding/chains"
 import { chainLabel } from "@/lib/chain-catalog"
+import { APP_HOME } from "@/lib/hosts"
 import { ChainName } from "@/components/chain-name"
 import { AssetName } from "@/components/asset-name"
 import { useFunding, type FundingOptions } from "./use-funding"
@@ -253,7 +254,7 @@ export function FundingFlow({
           {ready &&
             (purpose === "receive" && session.purpose === "spook" ? (
               <Link
-                href="/app"
+                href={APP_HOME}
                 className="py-3 text-center text-sm font-semibold underline"
               >
                 Finish creating Spook

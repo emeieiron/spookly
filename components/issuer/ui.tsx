@@ -45,7 +45,7 @@ export function SpookRow({ spook, now }: { spook: Spook; now: number }) {
   return (
     <li>
       <Link
-        href={`/app/spooks/${spook.signer}`}
+        href={`/spooks/${spook.signer}`}
         transitionTypes={["nav-forward"]}
         className={`flex items-center gap-3 py-3 text-sm ${live ? "" : "text-muted-foreground"}`}
       >

@@ -5,6 +5,7 @@ import {
 } from "@category-labs/mera"
 import { bytesToHex, hexToBytes, isHex, type Address, type Hex } from "viem"
 import { privateKeyToAddress } from "viem/accounts"
+import { passkeyRpId } from "./hosts"
 
 // "One passkey, many keys": a Spookly-specific PRF salt gives one 32-byte output per passkey, identical on every
 // device the passkey syncs to. HKDF splits it into keys that never sign anything: an AES-GCM key that seals
@@ -201,7 +202,7 @@ export async function createVault(
   let vault: LinkVault
   try {
     const { prfOutput } = await createPasskeyWithPrfOutput({
-      rp: { id: location.hostname, name: "Spookly" },
+      rp: { id: passkeyRpId(location.hostname), name: "Spookly" },
       // The date tells passkeys apart in the browser's picker if a lost one is ever replaced.
       user: {
         name: `${label} · ${new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`,
@@ -226,7 +227,7 @@ export async function unlockVault(
   let vault: LinkVault
   try {
     const { prfOutput } = await getPasskeyPrfOutput({
-      rpId: location.hostname,
+      rpId: passkeyRpId(location.hostname),
       prfSalt: await prfSalt(),
     })
     vault = await deriveVault(prfOutput)

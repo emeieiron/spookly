@@ -57,14 +57,14 @@ export function Home() {
         <span className="flex gap-4">
           {/* Negative margins keep 36px tap targets without changing the row height. */}
           <Link
-            href="/app/receive"
+            href="/receive"
             transitionTypes={["nav-forward"]}
             className="-my-2 flex items-center gap-1 py-2 text-xs font-semibold tracking-widest text-foreground uppercase"
           >
             <ArrowDownLeft className="size-3.5" /> Receive
           </Link>
           <Link
-            href="/app/send"
+            href="/send"
             transitionTypes={["nav-forward"]}
             className="-my-2 flex items-center gap-1 py-2 text-xs font-semibold tracking-widest text-foreground uppercase"
           >
@@ -83,7 +83,7 @@ export function Home() {
         onSpook={async (amount, days) => {
           const signer = await spook(amount, days)
           if (signer)
-            router.push(`/app/spooks/${signer}`, {
+            router.push(`/spooks/${signer}`, {
               transitionTypes: ["nav-forward"],
             })
           return !!signer
@@ -99,7 +99,7 @@ export function Home() {
             <span className="tabular-nums opacity-60">{open.length}</span>
           </span>
           <Link
-            href="/app/history"
+            href="/history"
             transitionTypes={["nav-forward"]}
             className="py-3 text-muted-foreground hover:text-foreground"
           >

@@ -39,6 +39,7 @@ import {
 import { FACTORY, USDC, erc20Abi, monad } from "@/lib/chain"
 import { errorMessage, publicClient } from "@/lib/spook-payment"
 import { shortAddress } from "@/lib/money"
+import { APP_HOME, SITE_URL } from "@/lib/hosts"
 import type { SignerClient, SponsorSender } from "@/lib/wallet-send"
 import { creationGasReserve } from "@/lib/funding/requirements"
 import { isDelegated } from "@/lib/monad-reserve"
@@ -203,7 +204,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     }
   }, [account, client, busy, load])
 
-  // In-app history, so a back arrow returns where the user came from and only falls back to /app on a direct visit.
+  // In-app history, so a back arrow returns where the user came from and only falls back to the app home on a direct visit.
   const trail = useRef<string[]>([])
   useEffect(() => {
     const t = trail.current
@@ -216,7 +217,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
   }, [pathname])
   const goBack = useCallback(() => {
     if (trail.current.length > 1) router.back()
-    else router.replace("/app", { transitionTypes: ["nav-back"] })
+    else router.replace(APP_HOME, { transitionTypes: ["nav-back"] })
   }, [router])
 
   const run = async <T,>(
@@ -327,7 +328,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     setUnlockFailed(false)
     await logout()
     setWallet(null)
-    router.replace("/app")
+    router.replace(APP_HOME)
   }
 
   const signedIn = ready && authenticated
@@ -410,7 +411,7 @@ export function AppFrame({
     <main className="mx-auto flex h-svh w-full max-w-md flex-col gap-6 px-4 py-6">
       <header className="flex h-9 shrink-0 items-center justify-between gap-3 [view-transition-name:app-header]">
         <Link
-          href={onSignOut ? "/app" : "/"}
+          href={onSignOut ? APP_HOME : SITE_URL}
           className="flex h-9 items-center text-sm font-semibold tracking-widest uppercase"
         >
           Spookly

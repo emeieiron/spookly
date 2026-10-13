@@ -10,6 +10,7 @@ import { spookBookAbi } from "@/lib/abi"
 import { describe, storedKey } from "@/lib/spook-book"
 import { spookLink } from "@/lib/spook-link"
 import { formatUsdc } from "@/lib/money"
+import { APP_HOME } from "@/lib/hosts"
 import { sendValidated } from "@/lib/wallet-send"
 import { useIssuer } from "./app"
 import { SpookPayments } from "./payments"
@@ -83,7 +84,7 @@ export function SpookDetail({ id }: { id: string }) {
     )
     setConfirming(false)
     // The spook is over, so leave its page rather than keep showing a dead link.
-    if (ok) router.replace("/app", { transitionTypes: ["nav-back"] })
+    if (ok) router.replace(APP_HOME, { transitionTypes: ["nav-back"] })
   }
 
   return (
