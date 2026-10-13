@@ -14,6 +14,7 @@ import { FACTORY, IS_MAINNET } from "@/lib/chain"
 import { chequeLink } from "@/lib/cheque-link"
 import { formatMon, formatUsdc, parseUsdc } from "@/lib/money"
 import { FundingFlow } from "@/components/funding/flow"
+import { ChainName } from "@/components/chain-name"
 import { useFundingSession } from "@/components/funding/use-session"
 import { fundingTargets } from "@/lib/funding/requirements"
 import { writeCheque } from "@/lib/issuer-write"
@@ -331,7 +332,7 @@ function WriteCheque({
       {IS_MAINNET && loaded && shortfall && !showFunding && (
         <div className="flex flex-col gap-2 text-xs text-muted-foreground">
           <p>
-            Your Monad balance needs{" "}
+            Your <ChainName chain="monad" /> balance needs{" "}
             {targets.map((target) => target.symbol).join(" and ")} to write this
             cheque.
           </p>

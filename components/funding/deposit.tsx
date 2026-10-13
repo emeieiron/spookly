@@ -5,6 +5,8 @@ import { formatUnits } from "viem"
 import { Check, Copy, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { QrCode } from "@/components/qr-code"
+import { ChainName } from "@/components/chain-name"
+import { AssetName } from "@/components/asset-name"
 import {
   depositAmount,
   quoteExpiry,
@@ -18,22 +20,11 @@ const STATUS: Record<FundingLeg["status"], string> = {
   KNOWN_DEPOSIT_TX: "Confirming payment",
   INCOMPLETE_DEPOSIT:
     "Deposit is below the required amount. Awaiting refund at the deadline.",
-  PROCESSING: "Arriving on Monad",
-  SUCCESS: "Received on Monad",
+  PROCESSING: "Arriving on",
+  SUCCESS: "Received on",
   REFUNDED: "Refunded to your source address",
   FAILED: "Funding failed. Check the source transaction before trying again.",
 }
-const CHAIN_LABELS: Record<string, string> = {
-  eth: "Ethereum",
-  arb: "Arbitrum",
-  op: "Optimism",
-  avax: "Avalanche",
-  sol: "Solana",
-  btc: "Bitcoin",
-  pol: "Polygon",
-}
-export const chainLabel = (chain: string) =>
-  CHAIN_LABELS[chain] ?? chain.charAt(0).toUpperCase() + chain.slice(1)
 
 export function Deposit({
   leg,
@@ -65,7 +56,15 @@ export function Deposit({
         ) : (
           !terminal(leg.status) && <Loader2 className="size-4 animate-spin" />
         )}
-        {leg.target.symbol}: {STATUS[leg.status]}
+        <span>
+          <AssetName symbol={leg.target.symbol} />: {STATUS[leg.status]}
+          {(leg.status === "PROCESSING" || leg.status === "SUCCESS") && (
+            <>
+              {" "}
+              <ChainName chain="monad" />
+            </>
+          )}
+        </span>
       </p>
       {pending && !expired && (
         <>
@@ -73,14 +72,14 @@ export function Deposit({
             <Button variant="outline" disabled={busy} onClick={onPay}>
               Pay{" "}
               {formatUnits(BigInt(depositAmount(leg.quote)), token.decimals)}{" "}
-              {token.symbol} in wallet
+              <AssetName symbol={token.symbol} /> in wallet
             </Button>
           )}
           <p className="text-xs text-muted-foreground">
             {canPay ? "Or send" : "Send"} exactly{" "}
             {formatUnits(BigInt(depositAmount(leg.quote)), token.decimals)}{" "}
-            {token.symbol} on {chainLabel(token.blockchain)} to this address
-            before{" "}
+            <AssetName symbol={token.symbol} /> on{" "}
+            <ChainName chain={token.blockchain} /> to this address before{" "}
             {new Date(quoteExpiry(leg.quote)).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -112,7 +111,7 @@ export function Deposit({
             <p className="text-xs text-muted-foreground">
               If refunded, the service deducts{" "}
               {formatUnits(BigInt(leg.quote.quote.refundFee), token.decimals)}{" "}
-              {token.symbol}.
+              <AssetName symbol={token.symbol} />.
             </p>
           )}
         </>

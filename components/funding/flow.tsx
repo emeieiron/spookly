@@ -21,8 +21,11 @@ import {
   terminal,
 } from "@/lib/funding/model"
 import { sourceChain } from "@/lib/funding/chains"
+import { chainLabel } from "@/lib/chain-catalog"
+import { ChainName } from "@/components/chain-name"
+import { AssetName } from "@/components/asset-name"
 import { useFunding, type FundingOptions } from "./use-funding"
-import { Deposit, chainLabel } from "./deposit"
+import { Deposit } from "./deposit"
 
 export function FundingFlow({
   account,
@@ -69,8 +72,8 @@ export function FundingFlow({
   if (!loaded)
     return <p className="text-xs text-muted-foreground">Loading funding…</p>
   const chains = [...new Set(tokens.map((t) => t.blockchain))]
-    .sort()
     .map((c) => ({ value: c, label: chainLabel(c) }))
+    .sort((a, b) => a.label.localeCompare(b.label))
   const assets = tokens
     .filter((t) => t.blockchain === chain)
     .map((t) => ({ value: t.assetId, label: t.symbol }))
@@ -91,12 +94,16 @@ export function FundingFlow({
                 }}
               >
                 <SelectTrigger id={`${id}-chain`} className="w-full">
-                  <SelectValue placeholder="Choose chain" />
+                  <SelectValue placeholder="Choose chain">
+                    {(value) =>
+                      value ? <ChainName chain={value} /> : "Choose chain"
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {chains.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
-                      {c.label}
+                      <ChainName chain={c.value} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -111,12 +118,21 @@ export function FundingFlow({
                 disabled={!chain}
               >
                 <SelectTrigger id={`${id}-asset`} className="w-full">
-                  <SelectValue placeholder="Choose asset" />
+                  <SelectValue placeholder="Choose asset">
+                    {(value) => {
+                      const selected = assets.find((a) => a.value === value)
+                      return selected ? (
+                        <AssetName symbol={selected.label} />
+                      ) : (
+                        "Choose asset"
+                      )
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {assets.map((a) => (
                     <SelectItem key={a.value} value={a.value}>
-                      {a.label}
+                      <AssetName symbol={a.label} />
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -125,7 +141,8 @@ export function FundingFlow({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${id}-refund`}>
-              Refund address on {chain ? chainLabel(chain) : "source chain"}
+              Refund address on{" "}
+              {chain ? <ChainName chain={chain} /> : "source chain"}
             </Label>
             <Input
               id={`${id}-refund`}
@@ -139,8 +156,9 @@ export function FundingFlow({
             </p>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Receive USDC on Monad. Any missing MON for cheque fees is included
-            in the quote; unused MON stays in your wallet.
+            Receive USDC on <ChainName chain="monad" />. Any missing MON for
+            cheque fees is included in the quote; unused MON stays in your
+            wallet.
           </p>
           <Button
             size="lg"
@@ -153,8 +171,10 @@ export function FundingFlow({
       ) : (
         <>
           <div className="flex items-center justify-between text-xs font-semibold tracking-widest uppercase">
-            <span>Pay from {chainLabel(session.token.blockchain)}</span>
-            <span>{session.token.symbol}</span>
+            <span>
+              Pay from <ChainName chain={session.token.blockchain} />
+            </span>
+            <AssetName symbol={session.token.symbol} />
           </div>
           <dl className="grid grid-cols-[1fr_auto] gap-2 text-sm">
             <dt className="text-muted-foreground">Source cost, up to</dt>
@@ -166,16 +186,22 @@ export function FundingFlow({
                 ),
                 session.token.decimals
               )}{" "}
-              {session.token.symbol}
+              <AssetName symbol={session.token.symbol} />
             </dd>
-            <dt className="text-muted-foreground">Receive on Monad</dt>
+            <dt className="text-muted-foreground">
+              Receive on <ChainName chain="monad" />
+            </dt>
             <dd className="text-right">
-              {session.legs
-                .map(
-                  (l) =>
-                    `${formatUnits(BigInt(l.target.amount), l.target.symbol === "USDC" ? 6 : 18)} ${l.target.symbol}`
-                )
-                .join(" + ")}
+              {session.legs.map((l, i) => (
+                <span key={l.target.symbol}>
+                  {i > 0 && " + "}
+                  {formatUnits(
+                    BigInt(l.target.amount),
+                    l.target.symbol === "USDC" ? 6 : 18
+                  )}{" "}
+                  <AssetName symbol={l.target.symbol} />
+                </span>
+              ))}
             </dd>
           </dl>
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -284,7 +310,7 @@ export function FundingFlow({
                 size="sm"
                 onClick={() => save(s)}
               >
-                Track {chainLabel(s.token.blockchain)} deposit ·{" "}
+                Track <ChainName chain={s.token.blockchain} /> deposit ·{" "}
                 {new Date(s.createdAt).toLocaleDateString()}
               </Button>
             ))}

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Check, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { QrCode } from "@/components/qr-code"
+import { ChainName } from "@/components/chain-name"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -30,14 +31,21 @@ export function Receive() {
         {IS_MAINNET && (
           <ToggleGroup
             aria-label="Receive funds"
+            className="w-full"
             value={[deposit ? "cross" : "monad"]}
             onValueChange={(v) => v[0] && setMode(v[0])}
             variant="outline"
           >
-            <ToggleGroupItem value="monad" className="flex-1">
-              On Monad
+            <ToggleGroupItem
+              value="monad"
+              className="min-w-0 flex-1 px-2 leading-tight whitespace-normal"
+            >
+              <ChainName chain="monad" label="On Monad" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="cross" className="flex-1">
+            <ToggleGroupItem
+              value="cross"
+              className="min-w-0 flex-1 px-2 leading-tight whitespace-normal"
+            >
               From another chain
             </ToggleGroupItem>
           </ToggleGroup>
@@ -119,7 +127,8 @@ export function Receive() {
               {copied ? "Copied" : "Copy address"}
             </Button>
             <p className="text-center text-xs leading-relaxed text-muted-foreground">
-              Send USDC or MON on {monad.name} only.
+              Send USDC or MON on <ChainName chain="monad" label={monad.name} />{" "}
+              only.
               {!IS_MAINNET && (
                 <>
                   {" "}

@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { NETWORKS } from "@/lib/networks"
+import { ChainName } from "@/components/chain-name"
 
 const items = NETWORKS.map((n) => ({ value: n.chainId, label: n.name }))
 
@@ -29,12 +30,20 @@ export function NetworkSelect({
       onValueChange={(v) => v !== null && onChange(v)}
     >
       <SelectTrigger id={id} className="w-full">
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {(chainId) =>
+            chainId ? (
+              <ChainName chain={chainId} />
+            ) : (
+              (placeholder ?? "Choose chain")
+            )
+          }
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {items.map((n) => (
           <SelectItem key={n.value} value={n.value}>
-            {n.label}
+            <ChainName chain={n.value} label={n.label} />
           </SelectItem>
         ))}
       </SelectContent>

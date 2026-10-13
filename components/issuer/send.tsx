@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ExternalLink } from "@/components/external-link"
 import { NetworkSelect } from "@/components/network-select"
+import { ChainName } from "@/components/chain-name"
 import {
   FORWARD_HOOK,
   STANDARD_FINALITY,
@@ -239,14 +240,15 @@ function SendForm({
   if (sent) {
     const done = sent.delivered
     const steps = isLocal(sent.network)
-      ? [{ label: "Sent", done: true }]
+      ? [{ label: "Sent", done: true, chain: null }]
       : [
-          { label: "Sent from your wallet", done: true },
+          { label: "Sent from your wallet", done: true, chain: null },
           {
-            label: `Moving to ${sent.network.name}`,
+            label: "Moving to",
+            chain: sent.network.chainId,
             done: !!sent.forwardTxHash || done,
           },
-          { label: `Delivered on ${sent.network.name}`, done },
+          { label: "Delivered on", chain: sent.network.chainId, done },
         ]
     return (
       <section className="flex flex-col items-center gap-4">
@@ -264,7 +266,8 @@ function SendForm({
             {formatUsdc(sent.amount)}
           </span>
           <span className="text-sm text-muted-foreground">
-            to {shortAddress(sent.recipient)} on {sent.network.name}
+            to {shortAddress(sent.recipient)} on{" "}
+            <ChainName chain={sent.network.chainId} />
           </span>
         </div>
         <ol className="flex w-full flex-col gap-2 text-sm">
@@ -275,19 +278,27 @@ function SendForm({
               ) : (
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               )}
-              {step.label}
+              <span>
+                {step.label}
+                {step.chain && (
+                  <>
+                    {" "}
+                    <ChainName chain={step.chain} />
+                  </>
+                )}
+              </span>
             </li>
           ))}
         </ol>
         <div className="flex gap-4">
           <ExternalLink href={`${EXPLORER}/tx/${sent.hash}`}>
-            View on Monad
+            View on <ChainName chain="monad" />
           </ExternalLink>
           {sent.forwardTxHash && (
             <ExternalLink
               href={`${sent.network.explorer}/tx/${sent.forwardTxHash}`}
             >
-              View on {sent.network.name}
+              View on <ChainName chain={sent.network.chainId} />
             </ExternalLink>
           )}
         </div>

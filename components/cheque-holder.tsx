@@ -7,6 +7,7 @@ import { Check, Clock, Loader2 } from "lucide-react"
 import { BackTitle } from "@/components/back-title"
 import { ExternalLink } from "@/components/external-link"
 import { NetworkSelect } from "@/components/network-select"
+import { ChainName } from "@/components/chain-name"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -487,14 +488,23 @@ function PaymentProgress({
 
   const amount = BigInt(pending.amount)
   const steps = local
-    ? [{ label: "Payment sent", done: !!pending.transactionHash }]
+    ? [{ label: "Payment sent", done: !!pending.transactionHash, chain: null }]
     : [
-        { label: "Sent from your cheque", done: !!pending.transactionHash },
         {
-          label: `Moving to ${network.name}`,
+          label: "Sent from your cheque",
+          done: !!pending.transactionHash,
+          chain: null,
+        },
+        {
+          label: "Moving to",
+          chain: network.chainId,
           done: !!pending.forwardTxHash || !!pending.delivered,
         },
-        { label: `Delivered on ${network.name}`, done: !!pending.delivered },
+        {
+          label: "Delivered on",
+          chain: network.chainId,
+          done: !!pending.delivered,
+        },
       ]
 
   return (
@@ -514,7 +524,7 @@ function PaymentProgress({
         </span>
         <span className="text-sm text-muted-foreground">
           {done ? "Paid" : "Paying"} to {shortAddress(pending.recipient)} on{" "}
-          {network.name}
+          <ChainName chain={network.chainId} />
         </span>
       </div>
       <ol className="flex w-full flex-col gap-2 text-left text-sm">
@@ -525,7 +535,15 @@ function PaymentProgress({
             ) : (
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
             )}
-            {step.label}
+            <span>
+              {step.label}
+              {step.chain && (
+                <>
+                  {" "}
+                  <ChainName chain={step.chain} />
+                </>
+              )}
+            </span>
           </li>
         ))}
       </ol>
@@ -540,7 +558,7 @@ function PaymentProgress({
           <ExternalLink
             href={`${network.explorer}/tx/${pending.forwardTxHash}`}
           >
-            View delivery on {network.name}
+            View delivery on <ChainName chain={network.chainId} />
           </ExternalLink>
         )}
       </div>
