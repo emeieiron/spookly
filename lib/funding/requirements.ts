@@ -1,12 +1,12 @@
 import { parseEther } from "viem"
-import { FEE_ALLOWANCE } from "../cheque-book"
+import { FEE_ALLOWANCE } from "../spook-book"
 import { MONAD_DELEGATED_RESERVE } from "../monad-reserve"
 import type { FundingTarget } from "./model"
 
 // Reserve for issuer transaction gas; unused MON stays in the wallet.
 export const CREATION_GAS_RESERVE = parseEther("1")
 export function creationGasReserve(maxFeePerGas: bigint, hasBook: boolean) {
-  // Creating a book deploys its contract. Ordinary writes need much less gas.
+  // Creating a book deploys its contract. Further Spooks need much less gas.
   return (maxFeePerGas * (hasBook ? 700_000n : 5_000_000n) * 12n) / 10n
 }
 export function fundingTargets(

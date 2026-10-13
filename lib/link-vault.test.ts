@@ -7,12 +7,12 @@ import {
   keyStorage,
   readLinks,
   storedKey,
-  type Cheque,
-} from "./cheque-book"
+  type Spook,
+} from "./spook-book"
 import {
   deriveVault,
-  openChequeKey,
-  sealChequeKey,
+  openSpookKey,
+  sealSpookKey,
   sealedKeyId,
 } from "./link-vault"
 
@@ -26,7 +26,7 @@ const flip = (sealed: Hex, index: number) => {
   return bytesToHex(bytes)
 }
 
-const cheque = (key: Hex, sealedKey: Hex = "0x", live = true): Cheque => ({
+const spook = (key: Hex, sealedKey: Hex = "0x", live = true): Spook => ({
   signer: privateKeyToAddress(key),
   amount: 1_000_000n,
   remaining: 1_000_000n,
@@ -46,8 +46,8 @@ describe("passkey vault", () => {
     assert.equal(a.id, b.id)
     assert.notEqual(a.id, other.id)
     const key = generatePrivateKey()
-    const sealed = await sealChequeKey(a, key)
-    assert.equal(await openChequeKey(b, sealed, privateKeyToAddress(key)), key)
+    const sealed = await sealSpookKey(a, key)
+    assert.equal(await openSpookKey(b, sealed, privateKeyToAddress(key)), key)
   })
 
   test("the PRF output is wiped after use", async () => {
@@ -58,7 +58,7 @@ describe("passkey vault", () => {
 
   test("a seal fits the contract's 128-byte limit and carries the vault id", async () => {
     const vault = await deriveVault(prf(1))
-    const sealed = await sealChequeKey(vault, generatePrivateKey())
+    const sealed = await sealSpookKey(vault, generatePrivateKey())
     assert.equal(hexToBytes(sealed).length, 69)
     assert.equal(sealedKeyId(sealed), vault.id)
   })
@@ -67,8 +67,8 @@ describe("passkey vault", () => {
     const vault = await deriveVault(prf(1))
     const key = generatePrivateKey()
     assert.notEqual(
-      await sealChequeKey(vault, key),
-      await sealChequeKey(vault, key)
+      await sealSpookKey(vault, key),
+      await sealSpookKey(vault, key)
     )
   })
 
@@ -78,9 +78,9 @@ describe("passkey vault", () => {
       deriveVault(prf(2)),
     ])
     const key = generatePrivateKey()
-    const sealed = await sealChequeKey(mine, key)
+    const sealed = await sealSpookKey(mine, key)
     assert.equal(
-      await openChequeKey(theirs, sealed, privateKeyToAddress(key)),
+      await openSpookKey(theirs, sealed, privateKeyToAddress(key)),
       null
     )
     // Even with the id rewritten to match, the ciphertext doesn't authenticate.
@@ -92,7 +92,7 @@ describe("passkey vault", () => {
       ])
     )
     assert.equal(
-      await openChequeKey(theirs, relabelled, privateKeyToAddress(key)),
+      await openSpookKey(theirs, relabelled, privateKeyToAddress(key)),
       null
     )
   })
@@ -101,24 +101,21 @@ describe("passkey vault", () => {
     const vault = await deriveVault(prf(1))
     const key = generatePrivateKey()
     const signer = privateKeyToAddress(key)
-    const sealed = await sealChequeKey(vault, key)
+    const sealed = await sealSpookKey(vault, key)
     for (const index of [9, 20, 21, 52, 68])
-      assert.equal(
-        await openChequeKey(vault, flip(sealed, index), signer),
-        null
-      )
+      assert.equal(await openSpookKey(vault, flip(sealed, index), signer), null)
   })
 
-  test("a seal only opens for the cheque it belongs to", async () => {
+  test("a seal only opens for the spook it belongs to", async () => {
     const vault = await deriveVault(prf(1))
-    const sealed = await sealChequeKey(vault, generatePrivateKey())
+    const sealed = await sealSpookKey(vault, generatePrivateKey())
     const elsewhere = privateKeyToAddress(generatePrivateKey())
-    assert.equal(await openChequeKey(vault, sealed, elsewhere), null)
+    assert.equal(await openSpookKey(vault, sealed, elsewhere), null)
   })
 
   test("unknown or malformed seals have no id", async () => {
     const vault = await deriveVault(prf(1))
-    const sealed = await sealChequeKey(vault, generatePrivateKey())
+    const sealed = await sealSpookKey(vault, generatePrivateKey())
     assert.equal(sealedKeyId("0x"), null)
     assert.equal(sealedKeyId(`0x${"ab".repeat(9)}`), null)
     assert.equal(sealedKeyId(`${sealed}00`), null)
@@ -140,25 +137,25 @@ describe("link restore", () => {
   test("every live link the vault sealed comes back in one pass and is kept", async () => {
     const vault = await deriveVault(prf(1))
     const keys = [generatePrivateKey(), generatePrivateKey()]
-    const cheques = await Promise.all(
-      keys.map(async (k) => cheque(k, await sealChequeKey(vault, k)))
+    const spooks = await Promise.all(
+      keys.map(async (k) => spook(k, await sealSpookKey(vault, k)))
     )
-    const links = await readLinks(owner, cheques, vault, now)
+    const links = await readLinks(owner, spooks, vault, now)
     assert.deepEqual(
-      cheques.map((c) => links.keys[c.signer]),
+      spooks.map((c) => links.keys[c.signer]),
       keys
     )
     assert.deepEqual(links.locked, [])
     assert.deepEqual(links.ids, [vault.id])
-    for (const [i, c] of cheques.entries())
+    for (const [i, c] of spooks.entries())
       assert.equal(storedKey(owner, c.signer), keys[i])
   })
 
   test("without the vault, sealed links are locked and unsealed ones are missing", async () => {
     const vault = await deriveVault(prf(1))
     const sealedKey = generatePrivateKey()
-    const sealed = cheque(sealedKey, await sealChequeKey(vault, sealedKey))
-    const unsealed = cheque(generatePrivateKey())
+    const sealed = spook(sealedKey, await sealSpookKey(vault, sealedKey))
+    const unsealed = spook(generatePrivateKey())
     const links = await readLinks(owner, [sealed, unsealed], null, now)
     assert.deepEqual(links.keys, {})
     assert.deepEqual(links.locked, [{ signer: sealed.signer, id: vault.id }])
@@ -170,8 +167,8 @@ describe("link restore", () => {
       deriveVault(prf(2)),
     ])
     const [a, b] = [generatePrivateKey(), generatePrivateKey()]
-    const mine = cheque(a, await sealChequeKey(current, a))
-    const older = cheque(b, await sealChequeKey(old, b))
+    const mine = spook(a, await sealSpookKey(current, a))
+    const older = spook(b, await sealSpookKey(old, b))
     const links = await readLinks(owner, [mine, older], current, now)
     assert.equal(links.keys[mine.signer], a)
     assert.deepEqual(links.locked, [{ signer: older.signer, id: old.id }])
@@ -181,7 +178,7 @@ describe("link restore", () => {
   test("a corrupted local key is ignored and replaced from the seal", async () => {
     const vault = await deriveVault(prf(1))
     const key = generatePrivateKey()
-    const c = cheque(key, await sealChequeKey(vault, key))
+    const c = spook(key, await sealSpookKey(vault, key))
     storage.set(keyStorage(owner, c.signer), generatePrivateKey())
     assert.equal(storedKey(owner, c.signer), null)
     storage.set(keyStorage(owner, c.signer), "not a key")
@@ -191,10 +188,10 @@ describe("link restore", () => {
     assert.equal(storedKey(owner, c.signer), key)
   })
 
-  test("closed cheques are neither restored nor locked, but their passkey is known", async () => {
+  test("closed spooks are neither restored nor locked, but their passkey is known", async () => {
     const vault = await deriveVault(prf(1))
     const key = generatePrivateKey()
-    const expired = cheque(key, await sealChequeKey(vault, key), false)
+    const expired = spook(key, await sealSpookKey(vault, key), false)
     const links = await readLinks(owner, [expired], null, now)
     assert.deepEqual(links, { keys: {}, locked: [], ids: [vault.id] })
   })
@@ -202,8 +199,8 @@ describe("link restore", () => {
   test("signing out forgets only keys that a passkey can bring back", async () => {
     const vault = await deriveVault(prf(1))
     const [a, b] = [generatePrivateKey(), generatePrivateKey()]
-    const sealed = cheque(a, await sealChequeKey(vault, a))
-    const unsealed = cheque(b)
+    const sealed = spook(a, await sealSpookKey(vault, a))
+    const unsealed = spook(b)
     storage.set(keyStorage(owner, sealed.signer), a)
     storage.set(keyStorage(owner, unsealed.signer), b)
     forgetSealedKeys(owner, [sealed, unsealed])

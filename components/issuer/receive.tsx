@@ -84,18 +84,18 @@ export function Receive() {
               }
               onReady={async () => {
                 await refresh()
-                if (session?.purpose === "write") goBack()
+                if (session?.purpose === "spook") goBack()
                 else {
                   setMode("monad")
                   setAmountText("")
                 }
-                return session?.purpose !== "write"
+                return session?.purpose !== "spook"
               }}
             />
-            {session?.purpose === "write" && (
+            {session?.purpose === "spook" && (
               <p className="text-xs text-muted-foreground">
-                This deposit belongs to your cheque draft. Return to Write to
-                finish creating the cheque.
+                This deposit belongs to your Spook draft. Return to Spook to
+                finish creating it.
               </p>
             )}
           </section>

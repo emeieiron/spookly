@@ -10,21 +10,21 @@ const qr = (text: string) =>
 // The app's two key screens, sized in container units so the pair scales as one picture.
 export async function ProductMock() {
   const [link, payment] = await Promise.all([
-    qr("PIPPO SPENDABLE LINK (demo)"),
+    qr("SPOOKLY SPENDABLE LINK (demo)"),
     qr(`ethereum:0x0000000000000000000000000000000000000000@${monad.id}`),
   ])
   return (
     <div
       role="img"
-      aria-label="Pippo's cheque screen showing a $25 spendable link, and the spend screen scanning a payment code"
+      aria-label="Spookly's Spook screen showing a $25 spendable link, and the spend screen scanning a payment code"
       className="@container relative w-full select-none"
     >
       <div aria-hidden className="relative flex items-start gap-[6cqw]">
-        <div className="mock-write flex w-[47cqw] flex-col gap-[2.5cqw]">
-          <Caption n="1">Write</Caption>
-          <Screen title="Pippo" detail="0x5054…932B">
+        <div className="mock-Spook flex w-[47cqw] flex-col gap-[2.5cqw]">
+          <Caption n="1">Spook</Caption>
+          <Screen title="Spookly" detail="0x5054…932B">
             <span className="flex items-center gap-[1.5cqw] text-[3.2cqw] font-semibold">
-              <ArrowLeft className="size-[3.6cqw]" /> Cheque
+              <ArrowLeft className="size-[3.6cqw]" /> Spook
             </span>
             <div className="flex flex-col items-center gap-[1cqw]">
               <span className="text-[8cqw] leading-none font-semibold tabular-nums">
@@ -53,7 +53,7 @@ export async function ProductMock() {
 
         <div className="mock-spend mt-[14cqw] flex w-[47cqw] flex-col gap-[2.5cqw]">
           <Caption n="2">Spend</Caption>
-          <Screen title="Pippo cheque">
+          <Screen title="Spookly Spook">
             <div className="flex items-baseline justify-between">
               <span className="text-[6cqw] leading-none font-semibold tabular-nums">
                 $25.00
@@ -86,7 +86,7 @@ export async function ProductMock() {
 
         <span className="mock-link absolute top-[44cqw] left-1/2 z-10 flex -translate-x-1/2 items-center gap-[1.2cqw] border bg-background px-[2.4cqw] py-[1.4cqw] font-mono text-[2.3cqw] shadow-lg">
           <Link2 className="size-[2.8cqw]" />
-          …/c#q7Hk2…
+          …/Spook#q7Hk2…
         </span>
       </div>
     </div>

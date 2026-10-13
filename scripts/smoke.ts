@@ -1,4 +1,4 @@
-// End-to-end check in the configured environment: write a cheque and pay 0.5 USDC to Base
+// End-to-end check in the configured environment: create a spook and pay 0.5 USDC to Base
 // through the bundler, then wait for Circle forwarding. Mainnet requires --broadcast.
 // Needs DEPLOYER_PRIVATE_KEY with MON/USDC and BUNDLER_RPC_URL (or testnet ALCHEMY_API_KEY).
 // Optional RECIPIENT on the selected Base network defaults to the issuer.
@@ -15,7 +15,7 @@ import {
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { base as baseMainnet, baseSepolia } from "viem/chains"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { chequeBookAbi, factoryAbi } from "../lib/abi"
+import { spookBookAbi, factoryAbi } from "../lib/abi"
 import { deliveryStatus } from "../lib/cctp"
 import { FACTORY, IS_MAINNET, erc20Abi, monad } from "../lib/chain"
 import {
@@ -23,7 +23,7 @@ import {
   publicClient,
   sendPayment,
   waitForPayment,
-} from "../lib/cheque-payment"
+} from "../lib/spook-payment"
 import { networkByChainId } from "../lib/networks"
 import { NO_PERMIT, signPermit } from "../lib/permit"
 
@@ -51,9 +51,9 @@ const base = createPublicClient({ chain: baseChain, transport: http() })
 const network = networkByChainId(baseChain.id)!
 const recipient = getAddress(process.env.RECIPIENT ?? issuer.address)
 const AMOUNT = 500_000n
-const CHEQUE = 650_000n
+const SPOOK = 650_000n
 const FEE_ALLOWANCE = parseEther("0.4")
-const KEY_FILE = `.smoke-cheque-${monad.id}.json`
+const KEY_FILE = `.smoke-spook-${monad.id}.json`
 
 async function send(label: string, hash: Promise<Hex>) {
   const receipt = await publicClient.waitForTransactionReceipt({
@@ -73,7 +73,7 @@ const bookOf = () =>
   })
 let book: Address = await bookOf()
 
-// The cheque key is saved locally so later runs reuse the same cheque instead of stranding its funds.
+// The spook key is saved locally so later runs reuse the same spook instead of stranding its funds.
 const saved = existsSync(KEY_FILE)
   ? JSON.parse(readFileSync(KEY_FILE, "utf8"))
   : null
@@ -82,29 +82,29 @@ let key: Hex | undefined =
 if (key) {
   const [remaining, , active] = await publicClient.readContract({
     address: book,
-    abi: chequeBookAbi,
-    functionName: "cheques",
+    abi: spookBookAbi,
+    functionName: "spooks",
     args: [privateKeyToAccount(key).address],
   })
   if (!active || remaining < AMOUNT + 150_000n) key = undefined
 }
 if (!key) {
-  // One transaction: create or fund the book by permit, deposit fees and write the cheque.
+  // One transaction: create or fund the book by permit, deposit fees and create the spook.
   key = generatePrivateKey()
   const signer = privateKeyToAccount(key).address
   const expiry = BigInt(Math.floor(Date.now() / 1000) + 86400)
   if (book === zeroAddress) {
-    const permit = await signPermit(wallet, FACTORY, CHEQUE)
+    const permit = await signPermit(wallet, FACTORY, SPOOK)
     writeFileSync(KEY_FILE, JSON.stringify({ book: "pending", key }), {
       mode: 0o600,
     })
     await send(
-      "create book and write cheque",
+      "create book and create spook",
       wallet.writeContract({
         address: FACTORY,
         abi: factoryAbi,
-        functionName: "createAndWrite",
-        args: [signer, CHEQUE, expiry, FEE_ALLOWANCE, permit, "0x"],
+        functionName: "createAndSpook",
+        args: [signer, SPOOK, expiry, FEE_ALLOWANCE, permit, "0x"],
         value: FEE_ALLOWANCE,
       })
     )
@@ -112,19 +112,19 @@ if (!key) {
   } else {
     const available = await publicClient.readContract({
       address: book,
-      abi: chequeBookAbi,
+      abi: spookBookAbi,
       functionName: "available",
     })
-    const pull = CHEQUE > available ? CHEQUE - available : 0n
+    const pull = SPOOK > available ? SPOOK - available : 0n
     const permit = pull > 0n ? await signPermit(wallet, book, pull) : NO_PERMIT
     writeFileSync(KEY_FILE, JSON.stringify({ book, key }), { mode: 0o600 })
     await send(
-      "fund and write cheque",
+      "fund and create spook",
       wallet.writeContract({
         address: book,
-        abi: chequeBookAbi,
-        functionName: "fundAndWrite",
-        args: [signer, CHEQUE, expiry, FEE_ALLOWANCE, pull, permit, "0x"],
+        abi: spookBookAbi,
+        functionName: "fundAndSpook",
+        args: [signer, SPOOK, expiry, FEE_ALLOWANCE, pull, permit, "0x"],
         value: FEE_ALLOWANCE,
       })
     )
@@ -133,7 +133,7 @@ if (!key) {
 }
 console.log("book", book)
 const signer = privateKeyToAccount(key).address
-console.log("cheque", signer)
+console.log("spook", signer)
 
 const before = await base.readContract({
   address: network.usdc,

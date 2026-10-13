@@ -1,46 +1,46 @@
 import { encodeFunctionData, type Address } from "viem"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import { chequeBookAbi, factoryAbi } from "./abi"
-import { FEE_ALLOWANCE, keyStorage, type Book } from "./cheque-book"
+import { spookBookAbi, factoryAbi } from "./abi"
+import { FEE_ALLOWANCE, keyStorage, type Book } from "./spook-book"
 import { FACTORY, USDC, erc20Abi } from "./chain"
-import { publicClient } from "./cheque-payment"
-import { sealChequeKey, type LinkVault } from "./link-vault"
+import { publicClient } from "./spook-payment"
+import { sealSpookKey, type LinkVault } from "./link-vault"
 import { NO_PERMIT, signPermit } from "./permit"
 import {
   FinalTransactionError,
-  sendChecked,
+  sendValidated,
   type SignerClient,
   type SponsorSender,
 } from "./wallet-send"
 import {
-  clearWriteDraft,
-  readWriteDraft,
-  saveWriteDraft,
-  type WriteDraft,
-} from "./write-draft"
+  clearSpookDraft,
+  readSpookDraft,
+  saveSpookDraft,
+  type SpookDraft,
+} from "./spook-draft"
 import {
   acknowledgeSponsor,
   clearPendingSponsor,
   readPendingSponsor,
 } from "./sponsor-pending"
 
-export async function prepareChequeWrite(
+export async function prepareSpookCreation(
   client: SignerClient,
   book: Book | null,
   vault: LinkVault | null,
   amount: bigint,
   days: number
-): Promise<WriteDraft> {
+): Promise<SpookDraft> {
   const account = client.account.address
-  const previous = readWriteDraft(account)
+  const previous = readSpookDraft(account)
   if (previous) {
     if (previous.amount !== String(amount) || previous.days !== days)
       throw new Error(
-        "A previous cheque is still being checked. Retry the same amount and expiry first."
+        "A previous spook is still being checked. Retry the same amount and expiry first."
       )
     return previous
   }
-  if (!FACTORY) throw new Error("Cheque writing is unavailable.")
+  if (!FACTORY) throw new Error("Spook creation is unavailable.")
   const key = generatePrivateKey()
   const signer = privateKeyToAccount(key).address
   localStorage.setItem(keyStorage(account, signer), key)
@@ -59,16 +59,16 @@ export async function prepareChequeWrite(
     pull > 0n && (!code || code === "0x")
       ? await signPermit(client, to, pull)
       : NO_PERMIT
-  const sealed = vault ? await sealChequeKey(vault, key) : "0x"
+  const sealed = vault ? await sealSpookKey(vault, key) : "0x"
   const data = book
     ? encodeFunctionData({
-        abi: chequeBookAbi,
-        functionName: "fundAndWrite",
+        abi: spookBookAbi,
+        functionName: "fundAndSpook",
         args: [signer, amount, expiry, FEE_ALLOWANCE, pull, permit, sealed],
       })
     : encodeFunctionData({
         abi: factoryAbi,
-        functionName: "createAndWrite",
+        functionName: "createAndSpook",
         args: [signer, amount, expiry, FEE_ALLOWANCE, permit, sealed],
       })
   const draft = {
@@ -81,13 +81,13 @@ export async function prepareChequeWrite(
     value: String(value),
     pull: String(pull),
   }
-  saveWriteDraft(account, draft)
+  saveSpookDraft(account, draft)
   return draft
 }
 
-export async function prepareNativeChequeWrite(
+export async function prepareNativeSpookCreation(
   client: SignerClient,
-  draft: WriteDraft
+  draft: SpookDraft
 ) {
   const pull = BigInt(draft.pull)
   if (pull === 0n) return
@@ -102,7 +102,7 @@ export async function prepareNativeChequeWrite(
     args: [client.account.address, draft.to],
   })
   if (allowance < pull)
-    await sendChecked(
+    await sendValidated(
       client,
       USDC,
       encodeFunctionData({
@@ -113,8 +113,8 @@ export async function prepareNativeChequeWrite(
     )
 }
 
-// Funding and ordinary writes share the same persisted signer and receipt recovery.
-export async function writeCheque(
+// Funding and Spook creation share the same persisted signer and receipt recovery.
+export async function createSpook(
   wallet: { account: Address; client: SignerClient; book: Book | null },
   amount: bigint,
   days: number,
@@ -122,15 +122,15 @@ export async function writeCheque(
   sponsor?: SponsorSender
 ) {
   const { account, client, book } = wallet
-  const draft = await prepareChequeWrite(client, book, vault, amount, days)
+  const draft = await prepareSpookCreation(client, book, vault, amount, days)
   const { key, signer } = draft
   try {
     if (
-      book?.cheques.some(
-        (cheque) => cheque.signer.toLowerCase() === signer.toLowerCase()
+      book?.spooks.some(
+        (spook) => spook.signer.toLowerCase() === signer.toLowerCase()
       )
     ) {
-      // Reconcile an already written cheque after a lost submission response.
+      // Reconcile an already created spook after a lost submission response.
       const pending = readPendingSponsor(account)
       if (pending?.transaction.data === draft.data) clearPendingSponsor(account)
     } else if (draft.hash) {
@@ -141,19 +141,19 @@ export async function writeCheque(
       if (receipt.status !== "success")
         throw new FinalTransactionError("The transaction failed.")
     } else {
-      await sendChecked(
+      await sendValidated(
         client,
         draft.to,
         draft.data,
         BigInt(draft.value),
         sponsor,
-        () => prepareNativeChequeWrite(client, draft),
-        (hash) => saveWriteDraft(account, { ...draft, hash })
+        () => prepareNativeSpookCreation(client, draft),
+        (hash) => saveSpookDraft(account, { ...draft, hash })
       )
     }
   } catch (error) {
     if (error instanceof FinalTransactionError && !readPendingSponsor(account))
-      clearWriteDraft(account)
+      clearSpookDraft(account)
     throw error
   }
   const bookAddress =
@@ -164,6 +164,6 @@ export async function writeCheque(
       functionName: "bookOf",
       args: [account],
     }))
-  clearWriteDraft(account)
+  clearSpookDraft(account)
   return { signer, bookAddress, key }
 }

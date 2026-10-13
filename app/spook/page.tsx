@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next"
-import { ChequeHolder } from "@/components/cheque-holder"
+import { SpookHolder } from "@/components/spook-holder"
 
 export const metadata: Metadata = {
-  title: "USDC cheque",
+  title: "USDC Spook",
   robots: { index: false },
   manifest: "/pwa/spender.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Pippo Spend",
+    title: "Spookly Spend",
     statusBarStyle: "default",
   },
   icons: { apple: "/pwa/apple-touch-icon.png" },
@@ -21,6 +21,6 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function ChequePage() {
-  return <ChequeHolder />
+export default function SpookPage() {
+  return <SpookHolder />
 }

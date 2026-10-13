@@ -12,8 +12,8 @@ import {
 const STATS = {
   id: STATS_ID,
   books: 0,
-  cheques: 0,
-  written: 0n,
+  spooks: 0,
+  created: 0n,
   payments: 0,
   paidOut: 0n,
   crossChainPayments: 0,
@@ -25,14 +25,14 @@ const fields = {
 } as const
 
 indexer.contractRegister(
-  { contract: "ChequeBookFactory", event: "BookCreated" },
+  { contract: "SpookBookFactory", event: "BookCreated" },
   async ({ event, context }) => {
-    context.chain.ChequeBook.add(event.params.book)
+    context.chain.SpookBook.add(event.params.book)
   }
 )
 
 indexer.onEvent(
-  { contract: "ChequeBookFactory", event: "BookCreated", fields },
+  { contract: "SpookBookFactory", event: "BookCreated", fields },
   async ({ event, context }) => {
     const stats = await context.Stats.getOrCreate(STATS)
     context.Book.set({
@@ -46,17 +46,17 @@ indexer.onEvent(
 )
 
 indexer.onEvent(
-  { contract: "ChequeBook", event: "ChequeWritten", fields },
+  { contract: "SpookBook", event: "SpookCreated", fields },
   async ({ event, context }) => {
     const stats = await context.Stats.getOrCreate(STATS)
-    context.Cheque.set({
+    context.Spook.set({
       id: event.params.signer,
       book_id: event.srcAddress,
       amount: event.params.amount,
       expiry: event.params.expiry,
       gasBudget: event.params.gasBudget,
-      writtenAt: BigInt(event.block.timestamp),
-      writtenTx: event.transaction.hash,
+      createdAt: BigInt(event.block.timestamp),
+      creationTx: event.transaction.hash,
       spent: 0n,
       paymentCount: 0,
       cancelledAt: undefined,
@@ -64,18 +64,18 @@ indexer.onEvent(
     })
     context.Stats.set({
       ...stats,
-      cheques: stats.cheques + 1,
-      written: stats.written + event.params.amount,
+      spooks: stats.spooks + 1,
+      created: stats.created + event.params.amount,
     })
   }
 )
 
 indexer.onEvent(
-  { contract: "ChequeBook", event: "ChequeCancelled", fields },
+  { contract: "SpookBook", event: "SpookCancelled", fields },
   async ({ event, context }) => {
-    const cheque = await context.Cheque.getOrThrow(event.params.signer)
-    context.Cheque.set({
-      ...cheque,
+    const spook = await context.Spook.getOrThrow(event.params.signer)
+    context.Spook.set({
+      ...spook,
       cancelledAt: BigInt(event.block.timestamp),
       refunded: event.params.released,
     })
@@ -83,16 +83,16 @@ indexer.onEvent(
 )
 
 indexer.onEvent(
-  { contract: "ChequeBook", event: "Paid", fields },
+  { contract: "SpookBook", event: "Paid", fields },
   async ({ event, context }) => {
-    const [cheque, stats] = await Promise.all([
-      context.Cheque.getOrThrow(event.params.signer),
+    const [spook, stats] = await Promise.all([
+      context.Spook.getOrThrow(event.params.signer),
       context.Stats.getOrCreate(STATS),
     ])
     const timestamp = BigInt(event.block.timestamp)
     context.Payment.set({
       id: eventId(event.chainId, event.transaction.hash, event.logIndex),
-      cheque_id: cheque.id,
+      spook_id: spook.id,
       book: event.srcAddress,
       recipient: event.params.recipient,
       chainId: MONAD_CHAIN,
@@ -107,10 +107,10 @@ indexer.onEvent(
       deliveredAt: timestamp,
       deliveryTxHash: event.transaction.hash,
     })
-    context.Cheque.set({
-      ...cheque,
-      spent: cheque.spent + event.params.amount,
-      paymentCount: cheque.paymentCount + 1,
+    context.Spook.set({
+      ...spook,
+      spent: spook.spent + event.params.amount,
+      paymentCount: spook.paymentCount + 1,
     })
     context.Stats.set({
       ...stats,
@@ -122,14 +122,14 @@ indexer.onEvent(
 
 // The burn on Monad. If its mint was indexed first, the payment is delivered on arrival.
 indexer.onEvent(
-  { contract: "ChequeBook", event: "PaidCrossChain", fields },
+  { contract: "SpookBook", event: "PaidCrossChain", fields },
   async ({ event, context }) => {
     const domain = Number(event.params.domain)
     const recipient = toAddress(event.params.recipient)
     const burned = event.params.amount
     const key = matchKey(event.srcAddress, domain, recipient, burned)
-    const [cheque, stats, match] = await Promise.all([
-      context.Cheque.getOrThrow(event.params.signer),
+    const [spook, stats, match] = await Promise.all([
+      context.Spook.getOrThrow(event.params.signer),
       context.Stats.getOrCreate(STATS),
       context.CrossChainMatch.get(key),
     ])
@@ -140,7 +140,7 @@ indexer.onEvent(
 
     context.Payment.set({
       id,
-      cheque_id: cheque.id,
+      spook_id: spook.id,
       book: event.srcAddress,
       recipient,
       chainId: CHAIN_BY_DOMAIN[domain] ?? 0,
@@ -161,10 +161,10 @@ indexer.onEvent(
       burns: mint ? (match?.burns ?? []) : [...(match?.burns ?? []), id],
       mints: mint ? match!.mints.slice(1) : (match?.mints ?? []),
     })
-    context.Cheque.set({
-      ...cheque,
-      spent: cheque.spent + burned,
-      paymentCount: cheque.paymentCount + 1,
+    context.Spook.set({
+      ...spook,
+      spent: spook.spent + burned,
+      paymentCount: spook.paymentCount + 1,
     })
     context.Stats.set({
       ...stats,

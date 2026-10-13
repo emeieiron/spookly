@@ -1,4 +1,4 @@
-name: pippo-mainnet
+name: spookly-mainnet
 services:
   postgres:
     image: postgres:18.3

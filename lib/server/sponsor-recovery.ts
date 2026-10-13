@@ -1,5 +1,5 @@
 import { decodeFunctionData, getAddress, type Address } from "viem"
-import { chequeBookAbi, factoryAbi } from "../abi"
+import { spookBookAbi, factoryAbi } from "../abi"
 import { FACTORY } from "../chain"
 import {
   SPONSOR_CAIP2,
@@ -11,17 +11,17 @@ import { type SponsorRecord } from "./sponsor-store"
 
 export const SPONSOR_RETRY_DELAY = 2 * 60_000
 
-export function pendingCheque(record: SponsorRecord) {
+export function pendingSpook(record: SponsorRecord) {
   const call = record.request.body.params.calls.at(-1)
   if (!call) return null
   try {
     const factory = FACTORY && getAddress(call.to) === getAddress(FACTORY)
     const decoded = factory
       ? decodeFunctionData({ abi: factoryAbi, data: call.data })
-      : decodeFunctionData({ abi: chequeBookAbi, data: call.data })
+      : decodeFunctionData({ abi: spookBookAbi, data: call.data })
     if (
-      decoded.functionName !== "createAndWrite" &&
-      decoded.functionName !== "fundAndWrite"
+      decoded.functionName !== "createAndSpook" &&
+      decoded.functionName !== "fundAndSpook"
     )
       return null
     return { signer: decoded.args[0] as Address, factory: !!factory, call }
@@ -30,7 +30,7 @@ export function pendingCheque(record: SponsorRecord) {
   }
 }
 
-export async function canRetryCheque(
+export async function canRetrySpook(
   record: SponsorRecord,
   tx: {
     wallet_id: string
@@ -54,9 +54,9 @@ export async function canRetryCheque(
     now < record.expiresAt - SPONSOR_REQUEST_TTL + SPONSOR_RETRY_DELAY
   )
     return false
-  const cheque = pendingCheque(record)
-  if (!cheque) return false
-  if (cheque.factory) {
+  const spook = pendingSpook(record)
+  if (!spook) return false
+  if (spook.factory) {
     const book = await sponsorClient.readContract({
       address: FACTORY!,
       abi: factoryAbi,
@@ -67,15 +67,15 @@ export async function canRetryCheque(
   }
   const [owner, existing] = await Promise.all([
     sponsorClient.readContract({
-      address: cheque.call.to,
-      abi: chequeBookAbi,
+      address: spook.call.to,
+      abi: spookBookAbi,
       functionName: "owner",
     }),
     sponsorClient.readContract({
-      address: cheque.call.to,
-      abi: chequeBookAbi,
-      functionName: "cheques",
-      args: [cheque.signer],
+      address: spook.call.to,
+      abi: spookBookAbi,
+      functionName: "spooks",
+      args: [spook.signer],
     }),
   ])
   // expiry remains nonzero after cancellation. A key is never writable twice.
@@ -84,16 +84,16 @@ export async function canRetryCheque(
   )
 }
 
-export function sameChequeTransaction(
+export function sameSpookTransaction(
   record: SponsorRecord,
   tx: SponsorTransaction
 ) {
-  const cheque = pendingCheque(record)
+  const spook = pendingSpook(record)
   return (
-    !!cheque &&
+    !!spook &&
     getAddress(record.walletAddress) === tx.from &&
-    getAddress(cheque.call.to) === tx.to &&
-    cheque.call.data.toLowerCase() === tx.data.toLowerCase() &&
-    BigInt(cheque.call.value) === BigInt(tx.value)
+    getAddress(spook.call.to) === tx.to &&
+    spook.call.data.toLowerCase() === tx.data.toLowerCase() &&
+    BigInt(spook.call.value) === BigInt(tx.value)
   )
 }

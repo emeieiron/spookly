@@ -24,7 +24,7 @@ const chain = defineChain({
 })
 const client = createPublicClient({ chain, transport: http() })
 if ((await client.getChainId()) !== chain.id)
-  throw new Error("RPC chain does not match NEXT_PUBLIC_PIPPO_NETWORK")
+  throw new Error("RPC chain does not match NEXT_PUBLIC_SPOOKLY_NETWORK")
 for (const address of [ENTRY_POINT, USDC, TOKEN_MESSENGER])
   if (!(await client.getCode({ address })))
     throw new Error(`Required contract missing: ${address}`)
@@ -48,16 +48,20 @@ if (
   )
   process.exit(0)
 }
-if (deployment.factory)
+if (
+  deployment.factory &&
+  !process.argv.includes("--estimate") &&
+  !process.argv.includes("--replace-factory")
+)
   throw new Error(
-    "A factory is already recorded for this network; verify it before preparing another deployment"
+    "A factory is configured. Replacing it requires --replace-factory and an explicit gas fee limit."
   )
 if (!process.env.DEPLOYER_PRIVATE_KEY)
   throw new Error("Set DEPLOYER_PRIVATE_KEY for the selected network")
 const account = privateKeyToAccount(process.env.DEPLOYER_PRIVATE_KEY)
 const wallet = createWalletClient({ chain, account, transport: http() })
 const artifact = JSON.parse(
-  readFileSync("contracts/out/ChequeBook.sol/ChequeBookFactory.json", "utf8")
+  readFileSync("contracts/out/SpookBook.sol/SpookBookFactory.json", "utf8")
 )
 
 const args = [ENTRY_POINT, USDC, TOKEN_MESSENGER]
@@ -103,7 +107,7 @@ async function recordDeployment(hash) {
   if (receipt.status !== "success" || !receipt.contractAddress)
     throw new Error(`Deployment failed: ${hash}`)
   const artifact = JSON.parse(
-    readFileSync("contracts/out/ChequeBook.sol/ChequeBookFactory.json", "utf8")
+    readFileSync("contracts/out/SpookBook.sol/SpookBookFactory.json", "utf8")
   )
   const expectedData = encodeDeployData({
     abi: artifact.abi,
@@ -121,6 +125,7 @@ async function recordDeployment(hash) {
     )
   if (
     deployment.factory &&
+    !process.argv.includes("--replace-factory") &&
     deployment.factory.toLowerCase() !== receipt.contractAddress.toLowerCase()
   )
     throw new Error("A different factory is already recorded for this network")
@@ -154,5 +159,5 @@ async function recordDeployment(hash) {
       2
     ) + "\n"
   )
-  console.log(`ChequeBookFactory ${receipt.contractAddress}`)
+  console.log(`SpookBookFactory ${receipt.contractAddress}`)
 }

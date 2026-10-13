@@ -11,7 +11,7 @@ import {
   type WalletClient,
 } from "viem"
 import { monad } from "./chain"
-import { publicClient } from "./cheque-payment"
+import { publicClient } from "./spook-payment"
 import { formatMon } from "./money"
 import { acknowledgeSponsor } from "./sponsor-pending"
 import { isDelegated, reserveShortfall, reserveMessage } from "./monad-reserve"
@@ -27,7 +27,7 @@ export type SponsorSender = (tx: {
 
 export class FinalTransactionError extends Error {}
 
-export async function sendChecked(
+export async function sendValidated(
   client: SignerClient,
   to: Address,
   data: Hex,

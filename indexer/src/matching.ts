@@ -6,7 +6,7 @@ const configFile = process.env.ENVIO_CONFIG
   ? resolve(process.env.ENVIO_CONFIG)
   : new URL("../config.yaml", import.meta.url)
 const config = readFileSync(configFile, "utf8")
-const profile = config.includes("name: pippo-mainnet")
+const profile = config.includes("name: spookly-mainnet")
   ? profiles.mainnet
   : profiles.testnet
 export const MONAD_CHAIN = profile.chainId

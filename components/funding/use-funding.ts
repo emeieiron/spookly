@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useWallets } from "@privy-io/react-auth"
 import { type EIP1193Provider } from "viem"
 import { monad } from "@/lib/chain"
-import { errorMessage } from "@/lib/cheque-payment"
+import { errorMessage } from "@/lib/spook-payment"
 import { getQuote, getStatus, getTokens } from "@/lib/funding/client"
 import {
   fundingComplete,
@@ -19,7 +19,7 @@ import { useFundingSession } from "./use-session"
 
 export type FundingOptions = {
   account: string
-  purpose: "write" | "receive"
+  purpose: "spook" | "receive"
   targets: FundingTarget[]
   draft?: { amount: string; days: number }
   actionLabel: string
@@ -93,7 +93,7 @@ export function useFunding({
           current.current?.createdAt !== s.createdAt
         )
           return
-        // Preserve hashes written while this request was in flight.
+        // Preserve hashes created while this request was in flight.
         const latest = current.current
         if (latest && statuses.some((v, i) => v !== latest.legs[i].status))
           persist({
@@ -121,8 +121,8 @@ export function useFunding({
 
   const finish = async () => {
     if (lock.current || disabled) return
-    // A completed cheque deposit remains attached to its draft when visited from Receive.
-    if (current.current?.purpose === "write" && purpose === "receive") return
+    // A completed spook deposit remains attached to its draft when visited from Receive.
+    if (current.current?.purpose === "spook" && purpose === "receive") return
     lock.current = true
     setBusy(true)
     setError(null)

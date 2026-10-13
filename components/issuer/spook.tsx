@@ -6,16 +6,16 @@ import { useRouter } from "next/navigation"
 import { Check, Copy, KeyRound, Loader2, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { QrCode } from "@/components/qr-code"
-import { chequeBookAbi } from "@/lib/abi"
-import { describe, storedKey } from "@/lib/cheque-book"
-import { chequeLink } from "@/lib/cheque-link"
+import { spookBookAbi } from "@/lib/abi"
+import { describe, storedKey } from "@/lib/spook-book"
+import { spookLink } from "@/lib/spook-link"
 import { formatUsdc } from "@/lib/money"
-import { sendChecked } from "@/lib/wallet-send"
+import { sendValidated } from "@/lib/wallet-send"
 import { useIssuer } from "./app"
-import { ChequePayments } from "./payments"
+import { SpookPayments } from "./payments"
 import { Bar, ErrorLine, Page, PageTitle } from "./ui"
 
-export function ChequeDetail({ id }: { id: string }) {
+export function SpookDetail({ id }: { id: string }) {
   const {
     wallet,
     sponsor,
@@ -32,14 +32,14 @@ export function ChequeDetail({ id }: { id: string }) {
   const [justCopied, setJustCopied] = useState(false)
 
   const signer = isAddress(id) ? getAddress(id) : null
-  const cheque = wallet?.book?.cheques.find((c) => c.signer === signer)
+  const spook = wallet?.book?.spooks.find((c) => c.signer === signer)
   const localKey =
-    wallet && cheque ? storedKey(wallet.account, cheque.signer) : null
+    wallet && spook ? storedKey(wallet.account, spook.signer) : null
 
   if (!wallet)
     return (
       <Page>
-        <PageTitle title="Cheque" />
+        <PageTitle title="Spook" />
         <div className="flex flex-col items-center gap-4">
           <Bar className="h-10 w-28" />
           <Bar className="aspect-square w-56" />
@@ -47,56 +47,54 @@ export function ChequeDetail({ id }: { id: string }) {
       </Page>
     )
 
-  if (!cheque || !wallet.book)
+  if (!spook || !wallet.book)
     return (
       <Page>
-        <PageTitle title="Cheque" />
+        <PageTitle title="Spook" />
         <p className="text-sm text-muted-foreground">
-          This cheque isn&apos;t in your cheque book.
+          This Spook isn&apos;t in your Spook book.
         </p>
       </Page>
     )
 
   const book = wallet.book
-  const { live, status } = describe(cheque, wallet.checkedAt)
-  // Links written elsewhere are restored from their sealed copies by the app, with this device's passkey vault.
-  const key = live ? (localKey ?? links?.keys[cheque.signer] ?? null) : null
+  const { live, status } = describe(spook, wallet.refreshedAt)
+  // Links created elsewhere are restored from their sealed copies by the app, with this device's passkey vault.
+  const key = live ? (localKey ?? links?.keys[spook.signer] ?? null) : null
   const locked =
-    live && !key && !!links?.locked.some((l) => l.signer === cheque.signer)
-  const link = key
-    ? chequeLink(window.location.origin, book.address, key)
-    : null
-  const isCopied = justCopied || copied === cheque.signer
+    live && !key && !!links?.locked.some((l) => l.signer === spook.signer)
+  const link = key ? spookLink(window.location.origin, book.address, key) : null
+  const isCopied = justCopied || copied === spook.signer
   const canShare = typeof navigator !== "undefined" && "share" in navigator
 
   const cancel = async () => {
     const ok = await run("cancel", ({ client }) =>
-      sendChecked(
+      sendValidated(
         client,
         book.address,
         encodeFunctionData({
-          abi: chequeBookAbi,
+          abi: spookBookAbi,
           functionName: "cancel",
-          args: [cheque.signer],
+          args: [spook.signer],
         }),
         0n,
         sponsor
       )
     )
     setConfirming(false)
-    // The cheque is over, so leave its page rather than keep showing a dead link.
+    // The spook is over, so leave its page rather than keep showing a dead link.
     if (ok) router.replace("/app", { transitionTypes: ["nav-back"] })
   }
 
   return (
     <Page>
-      <PageTitle title="Cheque" />
-      {/* The cheque and its payments scroll together; the cancel action stays at the bottom. */}
+      <PageTitle title="Spook" />
+      {/* The spook and its payments scroll together; the cancel action stays at the bottom. */}
       <div className="flex min-h-0 flex-1 [scrollbar-width:thin] flex-col gap-6 overflow-y-auto">
         <section className="flex flex-col items-center gap-4">
-          <ViewTransition name="cheque-amount" share="morph" default="none">
+          <ViewTransition name="spook-amount" share="morph" default="none">
             <span className="text-4xl font-semibold tabular-nums">
-              {formatUsdc(live ? cheque.remaining : cheque.amount)}
+              {formatUsdc(live ? spook.remaining : spook.amount)}
             </span>
           </ViewTransition>
           <span className="-mt-2 text-sm text-muted-foreground">{status}</span>
@@ -112,7 +110,7 @@ export function ChequeDetail({ id }: { id: string }) {
                   onClick={() =>
                     navigator.clipboard.writeText(link).then(() => {
                       setJustCopied(true)
-                      setCopied(cheque.signer)
+                      setCopied(spook.signer)
                     })
                   }
                 >
@@ -129,7 +127,7 @@ export function ChequeDetail({ id }: { id: string }) {
                     aria-label="Share"
                     onClick={() =>
                       navigator
-                        .share({ title: "USDC cheque", url: link })
+                        .share({ title: "USDC Spook", url: link })
                         .catch(() => {})
                     }
                   >
@@ -162,28 +160,28 @@ export function ChequeDetail({ id }: { id: string }) {
                 )}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Lost the passkey? Cancelling the cheque returns its money.
+                Lost the passkey? Cancelling the Spook returns its money.
               </p>
             </div>
           ) : live ? (
             <p className="text-center text-sm text-muted-foreground">
-              This cheque&apos;s link is saved on the device that wrote it.
+              This Spook&apos;s link is saved on the device that wrote it.
             </p>
           ) : null}
         </section>
 
-        <ChequePayments signer={cheque.signer} refreshKey={wallet.checkedAt} />
+        <SpookPayments signer={spook.signer} refreshKey={wallet.refreshedAt} />
       </div>
 
-      {cheque.active && (
+      {spook.active && (
         <section className="flex shrink-0 flex-col gap-2">
           <ErrorLine />
           {confirming ? (
             <div className="flex flex-col gap-3 border p-4">
               <p className="text-sm">
                 {live
-                  ? `Cancel this cheque? The link stops working and ${formatUsdc(cheque.remaining)} returns to your wallet.`
-                  : "Close this cheque and return its unused fees to your wallet?"}
+                  ? `Cancel this spook? The link stops working and ${formatUsdc(spook.remaining)} returns to your wallet.`
+                  : "Close this Spook and return its unused fees to your wallet?"}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -195,9 +193,9 @@ export function ChequeDetail({ id }: { id: string }) {
                   {busy === "cancel" ? (
                     <Loader2 className="animate-spin" />
                   ) : live ? (
-                    "Cancel cheque"
+                    "Cancel Spook"
                   ) : (
-                    "Close cheque"
+                    "Close Spook"
                   )}
                 </Button>
                 <Button
@@ -215,7 +213,7 @@ export function ChequeDetail({ id }: { id: string }) {
               disabled={!!busy}
               onClick={() => setConfirming(true)}
             >
-              {live ? "Cancel cheque" : "Reclaim leftovers"}
+              {live ? "Cancel Spook" : "Reclaim leftovers"}
             </Button>
           )}
         </section>

@@ -26,13 +26,13 @@ import "./landing.css"
 export const revalidate = 60
 
 export const metadata: Metadata = {
-  title: "Pippo · Spendable links",
+  title: "Spookly · Spendable links",
   description:
     "Put USDC in a link. Whoever holds it pays any USDC address straight from the link, on Monad or nine other networks.",
 }
 
 const STATS = [
-  ["1 tx", "to escrow and write"],
+  ["1 tx", "to escrow and create"],
   ["≈ 10 s", "to pay on Monad"],
   ["10", "networks it pays out on"],
   ["0 gas", "for the person spending"],
@@ -40,8 +40,8 @@ const STATS = [
 
 const STEPS = [
   [
-    "Write",
-    "Type an amount and how long it lasts. One transaction escrows the USDC and writes the cheque, so it can't bounce.",
+    "Spook",
+    "Type an amount and how long it lasts. One transaction escrows the USDC and creates the Spook, so it can't bounce.",
     "One tap · ≈ 5 s",
   ],
   [
@@ -93,28 +93,28 @@ const CONTROLS = [
   [
     Lock,
     "Escrowed",
-    "Funds are set aside when the cheque is written. It always clears.",
+    "Funds are set aside when the Spook is created. It always clears.",
   ],
   [Gauge, "Capped", "A link can never spend more than the amount on it."],
   [
     CalendarClock,
     "Dated",
-    "Every cheque expires. Reclaim what's left with one tap.",
+    "Every Spook expires. Reclaim what's left with one tap.",
   ],
   [
     Ban,
     "Cancellable",
-    "Stop a cheque instantly; unspent USDC and fees come back.",
+    "Stop a Spook instantly; unspent USDC and fees come back.",
   ],
   [
     Fuel,
     "Fee-fenced",
-    "Each cheque has its own gas allowance, and requests that would fail are refused before they cost anything.",
+    "Each Spook has its own gas allowance, and requests that would fail are refused before they cost anything.",
   ],
   [
     EyeOff,
     "Private by design",
-    "The spending key lives only in the link. Pippo's server never sees it.",
+    "The spending key lives only in the link. Spookly's server never sees it.",
   ],
   [
     KeyRound,
@@ -125,12 +125,12 @@ const CONTROLS = [
 
 const STACK = [
   [
-    "ERC-4337 cheque book",
-    "Each issuer gets a smart account. Every cheque is a one-off key that can only spend its own escrow, before its date, within its own fee allowance.",
+    "ERC-4337 Spook book",
+    "Each issuer gets a smart account. Every Spook is a one-off key that can only spend its own escrow, before its date, within its own fee allowance.",
   ],
   [
-    "One-transaction writes",
-    "A USDC permit replaces the approval step. The first cheque deploys the book, funds it, deposits fees and writes the cheque in a single transaction.",
+    "One-transaction Spooks",
+    "A USDC permit replaces the approval step. The first Spook deploys the book, funds it, deposits fees and creates the Spook in a single transaction.",
   ],
   [
     "Circle CCTP + forwarding",
@@ -215,7 +215,7 @@ export default async function Landing() {
             href="/"
             className="text-sm font-semibold tracking-widest uppercase"
           >
-            Pippo
+            Spookly
           </Link>
           <div className="flex items-center gap-1">
             {[
@@ -242,7 +242,7 @@ export default async function Landing() {
       <main>
         <section className="relative mx-auto grid max-w-6xl items-center gap-14 px-4 pt-14 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-10 lg:pt-24 lg:pb-24">
           <div className="reveal flex flex-col gap-6">
-            <Eyebrow>USDC cheques · Monad</Eyebrow>
+            <Eyebrow>USDC Spooks · Monad</Eyebrow>
             <h1 className="text-[clamp(3.25rem,9vw,6.25rem)] leading-[0.92] font-semibold tracking-tighter">
               Spendable
               <br />
@@ -256,7 +256,7 @@ export default async function Landing() {
               wallet, no gas.
             </p>
             <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center">
-              <OpenApp>Write a spendable link</OpenApp>
+              <OpenApp>Spook</OpenApp>
               <a
                 href="#how"
                 className={cn(
@@ -299,7 +299,7 @@ export default async function Landing() {
           id="how"
           className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6 lg:py-28"
         >
-          <SectionHead eyebrow="How it works" title="Write. Share. Spend.">
+          <SectionHead eyebrow="How it works" title="Spook. Share. Spend.">
             Two people, one link. From a funded wallet to a paid address in
             under a minute.
           </SectionHead>
@@ -343,7 +343,7 @@ export default async function Landing() {
                   Spendable link
                 </span>
               </div>
-              {COMPARISON.map(([label, claim, pippo]) => (
+              {COMPARISON.map(([label, claim, spookly]) => (
                 <div
                   key={label}
                   className="grid gap-2 border-b p-5 text-sm last:border-b-0 md:grid-cols-[1fr_1.2fr_1.2fr] md:gap-0 md:p-0"
@@ -355,7 +355,7 @@ export default async function Landing() {
                   </span>
                   <span className="flex gap-2.5 leading-relaxed md:bg-primary/10 md:p-5">
                     <Check className="mt-0.5 size-4 shrink-0" />
-                    {pippo}
+                    {spookly}
                   </span>
                 </div>
               ))}
@@ -395,12 +395,12 @@ export default async function Landing() {
           <div className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
             <Eyebrow>Safety</Eyebrow>
             <h2 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-              Built like a cheque.
+              Built like a Spook.
               <br />
               Safer than one.
             </h2>
             <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-              Each cheque is a narrow permission, not a wallet. Its key can only
+              Each Spook is a narrow permission, not a wallet. Its key can only
               move its own escrowed USDC, only until its date, and only within
               the fee allowance you set.
             </p>
@@ -435,7 +435,7 @@ export default async function Landing() {
             <ol className="grid gap-3 font-mono text-xs md:grid-cols-[1fr_auto_1.2fr_auto_1.4fr] md:items-center">
               <li className="border bg-background p-4">
                 <span className="block text-muted-foreground">ISSUER</span>
-                Google sign-in · writes in one tx
+                Google sign-in · creates in one tx
               </li>
               <li aria-hidden className="text-center text-muted-foreground">
                 <span className="md:hidden">↓</span>
@@ -443,9 +443,9 @@ export default async function Landing() {
               </li>
               <li className="border border-primary/50 bg-primary/10 p-4">
                 <span className="block text-muted-foreground">
-                  CHEQUE BOOK · MONAD
+                  Spook BOOK · MONAD
                 </span>
-                ERC-4337 account · escrow · per-cheque keys
+                ERC-4337 account · escrow · per-Spook keys
               </li>
               <li aria-hidden className="text-center text-muted-foreground">
                 <span className="md:hidden">↓</span>
@@ -490,7 +490,7 @@ export default async function Landing() {
               <br />A payment on Base.
             </h2>
             <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-              A cheque key paid half a dollar to an address on Base Sepolia.
+              A Spook key paid half a dollar to an address on Base Sepolia.
               Circle&apos;s Forwarding Service burned it on Monad and minted it
               on Base, while the issuer&apos;s deposit covered every fee.
             </p>
@@ -498,7 +498,7 @@ export default async function Landing() {
           </div>
           <div className="flex flex-col gap-5 border bg-card p-6 shadow-xl sm:p-8">
             <span className="text-sm font-semibold tracking-widest uppercase">
-              Pippo cheque
+              Spookly Spook
             </span>
             <ol className="flex flex-col gap-2 text-sm">
               {[
@@ -544,7 +544,7 @@ export default async function Landing() {
               Sign in with Google or email, type an amount, share the link. The
               person holding it only needs a camera.
             </p>
-            <OpenApp>Open Pippo</OpenApp>
+            <OpenApp>Open Spookly</OpenApp>
           </div>
         </section>
       </main>
@@ -572,7 +572,7 @@ function LiveStats({ stats }: { stats: ActivityStats }) {
       </span>
       <dl className="grid grid-cols-3 gap-px border bg-border">
         {[
-          ["Cheques written", stats.cheques.toLocaleString("en-US")],
+          ["Spooks created", stats.spooks.toLocaleString("en-US")],
           ["Paid from links", formatUsdc(stats.paidOut)],
           ["Delivered cross-network", stats.delivered.toLocaleString("en-US")],
         ].map(([label, value]) => (

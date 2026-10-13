@@ -8,7 +8,7 @@ import {
   type WalletClient,
 } from "viem"
 import { USDC, monad } from "./chain"
-import { publicClient } from "./cheque-payment"
+import { publicClient } from "./spook-payment"
 
 export const NO_PERMIT = { deadline: 0n, v: 0, r: zeroHash, s: zeroHash }
 

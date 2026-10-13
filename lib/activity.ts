@@ -6,7 +6,7 @@ const ENDPOINT = process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL
 
 export const activityEnabled = !!ENDPOINT
 
-export type ChequePayment = {
+export type SpookPayment = {
   id: string
   recipient: Address
   chainId: number
@@ -18,8 +18,8 @@ export type ChequePayment = {
 }
 
 export type ActivityStats = {
-  cheques: number
-  written: bigint
+  spooks: number
+  created: bigint
   payments: number
   paidOut: bigint
   crossChainPayments: number
@@ -56,28 +56,28 @@ async function query<T>(
 
 type Numeric = string | number
 
-export async function chequePayments(
+export async function spookPayments(
   signer: Address
-): Promise<ChequePayment[] | null> {
+): Promise<SpookPayment[] | null> {
   const data = await query<{
     Payment: {
       id: string
       recipient: Address
       chainId: number
       amount: Numeric
-      status: ChequePayment["status"]
+      status: SpookPayment["status"]
       timestamp: Numeric
       txHash: Hash
       deliveryTxHash: Hash | null
     }[]
   }>(
-    `query ($cheque: String!) {
-      Payment(where: { cheque_id: { _eq: $cheque } }, order_by: { timestamp: desc }) {
+    `query ($spook: String!) {
+      Payment(where: { spook_id: { _eq: $spook } }, order_by: { timestamp: desc }) {
         id recipient chainId amount status timestamp txHash deliveryTxHash
       }
     }`,
     // The indexer stores addresses lowercase.
-    { cheque: signer.toLowerCase() }
+    { spook: signer.toLowerCase() }
   )
   return (
     data?.Payment.map((p) => ({
@@ -91,8 +91,8 @@ export async function chequePayments(
 export async function activityStats(): Promise<ActivityStats | null> {
   const data = await query<{
     Stats: {
-      cheques: number
-      written: Numeric
+      spooks: number
+      created: Numeric
       payments: number
       paidOut: Numeric
       crossChainPayments: number
@@ -100,14 +100,14 @@ export async function activityStats(): Promise<ActivityStats | null> {
     }[]
   }>(
     `{ Stats(where: { id: { _eq: "global-${monad.id}" } }) {
-      cheques written payments paidOut crossChainPayments delivered
+      spooks created payments paidOut crossChainPayments delivered
     } }`
   )
   const stats = data?.Stats[0]
   return stats
     ? {
         ...stats,
-        written: BigInt(stats.written),
+        created: BigInt(stats.created),
         paidOut: BigInt(stats.paidOut),
       }
     : null

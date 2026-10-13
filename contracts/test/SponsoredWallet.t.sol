@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ChequeBookForkTest, IPermitToken} from "./ChequeBook.t.sol";
-import {ChequeBook, Permit} from "../src/ChequeBook.sol";
+import {SpookBookForkTest, IPermitToken} from "./SpookBook.t.sol";
+import {SpookBook, Permit} from "../src/SpookBook.sol";
 
 // Models the property relevant to EIP-7702: execution remains at the issuer's
 // address, but USDC sees contract code and rejects the deployed v/r/s permit.
@@ -31,7 +31,7 @@ contract BatchWallet {
     }
 }
 
-contract SponsoredWalletForkTest is ChequeBookForkTest {
+contract SponsoredWalletForkTest is SpookBookForkTest {
     function testDelegatedWalletCreatesBookWithExactApproval() public {
         issuer = vm.addr(0xBA7C4);
         issuerKey = 0xBA7C4;
@@ -45,14 +45,14 @@ contract SponsoredWalletForkTest is ChequeBookForkTest {
             .execute(
                 address(factory),
                 abi.encodeCall(
-                    factory.createAndWrite,
+                    factory.createAndSpook,
                     (vm.addr(21), 2e6, uint64(block.timestamp + 1 days), 0.3 ether, p, bytes(""))
                 ),
                 0.3 ether,
                 2e6
             );
-        ChequeBook created = ChequeBook(payable(factory.bookOf(issuer)));
-        require(created.owner() == issuer && created.reserved() == 2e6, "same owner and funded cheque");
+        SpookBook created = SpookBook(payable(factory.bookOf(issuer)));
+        require(created.owner() == issuer && created.reserved() == 2e6, "same owner and funded spook");
         require(USDC.allowance(issuer, address(factory)) == 0, "exact approval consumed");
         require(IPermitToken(address(USDC)).nonces(issuer) == nonce, "raw permit rejected");
     }
@@ -65,7 +65,7 @@ contract SponsoredWalletForkTest is ChequeBookForkTest {
             .execute(
                 address(book),
                 abi.encodeCall(
-                    book.fundAndWrite,
+                    book.fundAndSpook,
                     (vm.addr(22), 2e6, uint64(block.timestamp + 1 days), 0.2 ether, 2e6, p, bytes(""))
                 ),
                 0.2 ether,

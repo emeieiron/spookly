@@ -14,7 +14,7 @@ for (const network of ["testnet", "mainnet"]) {
     ["--import", "tsx", "--test", ...selected.map((name) => `lib/${name}`)],
     {
       stdio: "inherit",
-      env: { ...process.env, NEXT_PUBLIC_PIPPO_NETWORK: network },
+      env: { ...process.env, NEXT_PUBLIC_SPOOKLY_NETWORK: network },
     }
   )
   if (result.status !== 0) process.exit(result.status ?? 1)

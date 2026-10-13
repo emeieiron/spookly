@@ -9,7 +9,7 @@ import {
   type Address,
 } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { chequeBookAbi, factoryAbi } from "./abi"
+import { spookBookAbi, factoryAbi } from "./abi"
 import { FACTORY, USDC, erc20Abi } from "./chain"
 import {
   allowedSponsorCall,
@@ -80,7 +80,7 @@ test("only the issuer's factory book can receive sponsored management calls", ()
     ...transfer(),
     to: book,
     data: encodeFunctionData({
-      abi: chequeBookAbi,
+      abi: spookBookAbi,
       functionName: "cancel",
       args: [other.address],
     }),
@@ -90,13 +90,13 @@ test("only the issuer's factory book can receive sponsored management calls", ()
   assert.equal(allowedSponsorCall({ ...tx, value: "0x1" }, book), false)
 })
 
-test("a cheque's batch approves only its exact USDC pull", () => {
+test("a spook's batch approves only its exact USDC pull", () => {
   const tx = parseSponsorTransaction({
     ...transfer(),
     to: FACTORY as Address,
     data: encodeFunctionData({
       abi: factoryAbi,
-      functionName: "createAndWrite",
+      functionName: "createAndSpook",
       args: [other.address, 2_000_000n, 9999999999n, 1n, permit, "0x"],
     }),
   })
@@ -126,8 +126,8 @@ test("a cheque's batch approves only its exact USDC pull", () => {
     ...transfer(),
     to: book,
     data: encodeFunctionData({
-      abi: chequeBookAbi,
-      functionName: "fundAndWrite",
+      abi: spookBookAbi,
+      functionName: "fundAndSpook",
       args: [
         other.address,
         2_000_000n,

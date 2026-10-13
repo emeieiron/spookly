@@ -4,7 +4,7 @@ import { ViewTransition } from "react"
 import Link from "next/link"
 import { ChevronRight } from "lucide-react"
 import { BackTitle } from "@/components/back-title"
-import { describe, type Cheque } from "@/lib/cheque-book"
+import { describe, type Spook } from "@/lib/spook-book"
 import { formatUsdc } from "@/lib/money"
 import { useIssuer } from "./app"
 
@@ -40,17 +40,17 @@ export function ErrorLine() {
   return <p className="min-h-5 text-sm break-words text-destructive">{error}</p>
 }
 
-export function ChequeRow({ cheque, now }: { cheque: Cheque; now: number }) {
-  const { live, status } = describe(cheque, now)
+export function SpookRow({ spook, now }: { spook: Spook; now: number }) {
+  const { live, status } = describe(spook, now)
   return (
     <li>
       <Link
-        href={`/app/cheques/${cheque.signer}`}
+        href={`/app/spooks/${spook.signer}`}
         transitionTypes={["nav-forward"]}
         className={`flex items-center gap-3 py-3 text-sm ${live ? "" : "text-muted-foreground"}`}
       >
         <span className="font-semibold tabular-nums">
-          {formatUsdc(cheque.amount)}
+          {formatUsdc(spook.amount)}
         </span>
         <span className="flex-1 text-xs text-muted-foreground">{status}</span>
         <ChevronRight className="size-4 text-muted-foreground" />

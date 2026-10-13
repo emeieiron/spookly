@@ -9,19 +9,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { DAYS } from "@/lib/cheque-book"
+import { DAYS } from "@/lib/spook-book"
 import { FACTORY, IS_MAINNET } from "@/lib/chain"
-import { chequeLink } from "@/lib/cheque-link"
+import { spookLink } from "@/lib/spook-link"
 import { formatMon, formatUsdc, parseUsdc } from "@/lib/money"
 import { FundingFlow } from "@/components/funding/flow"
 import { ChainName } from "@/components/chain-name"
 import { useFundingSession } from "@/components/funding/use-session"
 import { fundingTargets } from "@/lib/funding/requirements"
-import { writeCheque } from "@/lib/issuer-write"
-import { readWriteDraft, type WriteDraft } from "@/lib/write-draft"
+import { createSpook } from "@/lib/issuer-spook"
+import { readSpookDraft, type SpookDraft } from "@/lib/spook-draft"
 import { readPendingSponsor } from "@/lib/sponsor-pending"
 import { fetchWallet, useIssuer, type Wallet } from "./app"
-import { Bar, ChequeRow, ErrorLine, Page } from "./ui"
+import { Bar, SpookRow, ErrorLine, Page } from "./ui"
 
 export function Home() {
   const { wallet, busy, run, setCopied, vault, sponsor } = useIssuer()
@@ -29,18 +29,18 @@ export function Home() {
 
   if (!wallet) return <HomeSkeleton />
   const { book, account } = wallet
-  const pendingWrite = readWriteDraft(account)
-  // Active holds every cheque that still holds money or fees; history holds closed ones.
-  const open = book?.cheques.filter((c) => c.active) ?? []
-  const closedCount = (book?.cheques.length ?? 0) - open.length
-  const write = (amount: bigint, days: number) =>
-    run("write", async ({ account, client }) => {
+  const pendingSpook = readSpookDraft(account)
+  // Active holds every spook that still holds money or fees; history holds closed ones.
+  const open = book?.spooks.filter((c) => c.active) ?? []
+  const closedCount = (book?.spooks.length ?? 0) - open.length
+  const spook = (amount: bigint, days: number) =>
+    run("spook", async ({ account, client }) => {
       // Read after settlement, so funding never uses a stale wallet or book balance.
       const current = await fetchWallet(account, client)
-      const result = await writeCheque(current, amount, days, vault, sponsor)
+      const result = await createSpook(current, amount, days, vault, sponsor)
       const copied = await navigator.clipboard
         ?.writeText(
-          chequeLink(window.location.origin, result.bookAddress, result.key)
+          spookLink(window.location.origin, result.bookAddress, result.key)
         )
         .then(() => true)
         .catch(() => false)
@@ -73,17 +73,17 @@ export function Home() {
         </span>
       </div>
 
-      <WriteCheque
-        key={`${account}:${pendingWrite?.signer ?? "new"}`}
-        pendingWrite={pendingWrite}
-        checking={!!readPendingSponsor(account) || !!pendingWrite?.hash}
-        busy={busy === "write"}
+      <CreateSpook
+        key={`${account}:${pendingSpook?.signer ?? "new"}`}
+        pendingSpook={pendingSpook}
+        verifying={!!readPendingSponsor(account) || !!pendingSpook?.hash}
+        busy={busy === "spook"}
         disabled={!!busy || !FACTORY}
         wallet={wallet}
-        onWrite={async (amount, days) => {
-          const signer = await write(amount, days)
+        onSpook={async (amount, days) => {
+          const signer = await spook(amount, days)
           if (signer)
-            router.push(`/app/cheques/${signer}`, {
+            router.push(`/app/spooks/${signer}`, {
               transitionTypes: ["nav-forward"],
             })
           return !!signer
@@ -109,11 +109,11 @@ export function Home() {
         </div>
         <ul className="min-h-0 flex-1 [scrollbar-width:thin] divide-y overflow-y-auto">
           {open.map((c) => (
-            <ChequeRow key={c.signer} cheque={c} now={wallet.checkedAt} />
+            <SpookRow key={c.signer} spook={c} now={wallet.refreshedAt} />
           ))}
           {open.length === 0 && (
             <li className="py-6 text-center text-xs text-muted-foreground">
-              No active cheques
+              No active Spooks
             </li>
           )}
         </ul>
@@ -122,7 +122,7 @@ export function Home() {
   )
 }
 
-// One passkey protects every cheque link, so links written here open on any device the passkey syncs to.
+// One passkey protects every spook link, so links created here open on any device the passkey syncs to.
 function VaultStatus() {
   const {
     vault,
@@ -159,7 +159,7 @@ function VaultStatus() {
             ? ["Links backed up to your passkey", []]
             : passkeys
               ? [
-                  "Open your cheque links on any device",
+                  "Open your Spook links on any device",
                   [["Use passkey", setUpVault]],
                 ]
               : passkeys === false
@@ -195,39 +195,39 @@ function VaultStatus() {
   )
 }
 
-function WriteCheque({
+function CreateSpook({
   busy,
   disabled,
   wallet,
-  pendingWrite,
-  checking,
-  onWrite,
+  pendingSpook,
+  verifying,
+  onSpook,
 }: {
   busy: boolean
   disabled: boolean
   wallet: Wallet
-  pendingWrite: WriteDraft | null
-  checking: boolean
-  onWrite: (amount: bigint, days: number) => Promise<boolean>
+  pendingSpook: SpookDraft | null
+  verifying: boolean
+  onSpook: (amount: bigint, days: number) => Promise<boolean>
 }) {
   const { session, loaded } = useFundingSession(wallet.account)
   const [fundingOpen, setFundingOpen] = useState(false)
   const [amountText, setAmountText] = useState(() =>
-    pendingWrite ? formatUnits(BigInt(pendingWrite.amount), 6) : ""
+    pendingSpook ? formatUnits(BigInt(pendingSpook.amount), 6) : ""
   )
-  const [days, setDays] = useState(() => pendingWrite?.days ?? 7)
+  const [days, setDays] = useState(() => pendingSpook?.days ?? 7)
   const draftAmount =
-    session?.purpose === "write"
+    session?.purpose === "spook"
       ? (session.draft?.amount ?? amountText)
       : amountText
   const draftDays =
-    session?.purpose === "write" ? (session.draft?.days ?? days) : days
+    session?.purpose === "spook" ? (session.draft?.days ?? days) : days
   const amount = parseUsdc(draftAmount)
   const max = wallet.usdc + (wallet.book?.available ?? 0n)
   const resuming =
-    !!pendingWrite &&
-    amount?.toString() === pendingWrite.amount &&
-    draftDays === pendingWrite.days
+    !!pendingSpook &&
+    amount?.toString() === pendingSpook.amount &&
+    draftDays === pendingSpook.days
   const targets =
     amount && !resuming
       ? fundingTargets(
@@ -242,18 +242,18 @@ function WriteCheque({
       : []
   const shortfall = targets.length > 0
   const showFunding = IS_MAINNET && (!!session || (shortfall && fundingOpen))
-  const pending = !!session || !!pendingWrite
+  const pending = !!session || !!pendingSpook
   const tooMuch = !resuming && amount !== null && amount > max
   return (
     <section className="flex shrink-0 flex-col gap-4">
       <Label className="cursor-text border-b pb-2 tracking-normal normal-case select-auto">
-        <ViewTransition name="cheque-amount" share="morph" default="none">
+        <ViewTransition name="spook-amount" share="morph" default="none">
           <span className="inline-flex items-baseline gap-2">
             <span className="text-4xl font-semibold text-muted-foreground">
               $
             </span>
             <Input
-              aria-label="Cheque amount in USDC"
+              aria-label="Spook amount in USDC"
               inputMode="decimal"
               placeholder="0.00"
               disabled={pending || busy}
@@ -291,19 +291,19 @@ function WriteCheque({
               className="self-start"
               onClick={() => setFundingOpen(false)}
             >
-              Back to cheque
+              Back to Spook
             </Button>
           )}
           <FundingFlow
             account={wallet.account}
-            purpose="write"
+            purpose="spook"
             targets={targets}
             draft={{ amount: draftAmount, days: draftDays }}
-            actionLabel="Write cheque"
+            actionLabel="Spook"
             disabled={disabled}
             onReady={async () => {
               if (session?.purpose === "receive") return true
-              return !!amount && onWrite(amount, draftDays)
+              return !!amount && onSpook(amount, draftDays)
             }}
           />
         </>
@@ -313,19 +313,19 @@ function WriteCheque({
           disabled={disabled || !loaded || amount === null || shortfall}
           onClick={() =>
             amount &&
-            onWrite(amount, draftDays).then((ok) => ok && setAmountText(""))
+            onSpook(amount, draftDays).then((ok) => ok && setAmountText(""))
           }
         >
           {busy ? (
             <Loader2 className="animate-spin" />
-          ) : checking && resuming ? (
-            "Check cheque"
+          ) : verifying && resuming ? (
+            "Refresh Spook"
           ) : tooMuch ? (
             `Only ${formatUsdc(max)} available`
           ) : shortfall ? (
             "MON needed for fees"
           ) : (
-            "Write cheque"
+            "Spook"
           )}
         </Button>
       )}
@@ -333,8 +333,8 @@ function WriteCheque({
         <div className="flex flex-col gap-2 text-xs text-muted-foreground">
           <p>
             Your <ChainName chain="monad" /> balance needs{" "}
-            {targets.map((target) => target.symbol).join(" and ")} to write this
-            cheque.
+            {targets.map((target) => target.symbol).join(" and ")} to create
+            this Spook.
           </p>
           <Button
             variant="outline"
@@ -348,7 +348,7 @@ function WriteCheque({
       )}
       {!FACTORY && (
         <p className="text-xs text-muted-foreground">
-          Cheque creation is unavailable right now.
+          Spook creation is unavailable right now.
         </p>
       )}
     </section>

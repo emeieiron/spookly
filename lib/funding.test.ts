@@ -17,7 +17,7 @@ import {
   type FundingSession,
   type QuoteRequest,
 } from "./funding/model"
-import { FEE_ALLOWANCE } from "./cheque-book"
+import { FEE_ALLOWANCE } from "./spook-book"
 import { creationGasReserve, fundingTargets } from "./funding/requirements"
 import { selectNetwork, bundlerEndpoint } from "../config/network.mjs"
 
@@ -59,7 +59,7 @@ const session: FundingSession = {
   version: 1,
   account,
   chainId: 143,
-  purpose: "write",
+  purpose: "spook",
   token,
   refundTo: account,
   createdAt: Date.now(),
@@ -262,7 +262,7 @@ test("only an expired request with every deposit unpaid can be closed", () => {
   )
 })
 
-test("delegated wallet funding includes the reserve only when the cheque spends native MON", () => {
+test("delegated wallet funding includes the reserve only when the spook spends native MON", () => {
   assert.deepEqual(
     fundingTargets(
       1_000_000n,

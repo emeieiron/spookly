@@ -28,9 +28,9 @@ import {
   reserveMessage,
 } from "@/lib/monad-reserve"
 import {
-  canRetryCheque,
-  sameChequeTransaction,
-  pendingCheque,
+  canRetrySpook,
+  sameSpookTransaction,
+  pendingSpook,
 } from "@/lib/server/sponsor-recovery"
 
 export const runtime = "nodejs"
@@ -75,8 +75,8 @@ export async function POST(request: Request) {
           previous.userId !== user.id ||
           previous.walletId !== wallet.id ||
           !previous.transactionId ||
-          !sameChequeTransaction(previous, tx) ||
-          !(await canRetryCheque(
+          !sameSpookTransaction(previous, tx) ||
+          !(await canRetrySpook(
             previous,
             await serverPrivy().transactions().get(previous.transactionId)
           ))
@@ -206,16 +206,16 @@ export async function GET(request: Request) {
       !tx.transaction_hash &&
       ["broadcasted", "pending", "provider_error"].includes(tx.status)
     ) {
-      const cheque = pendingCheque(record)
-      if (cheque) {
+      const spook = pendingSpook(record)
+      if (spook) {
         const shortfall = reserveShortfall(
           await sponsorClient.getBalance({
             address: getAddress(record.walletAddress),
           }),
-          BigInt(cheque.call.value)
+          BigInt(spook.call.value)
         )
         // This describes a current execution blocker, not proof the provider
-        // dropped the operation. Preserve the request and cheque draft.
+        // dropped the operation. Preserve the request and spook draft.
         if (shortfall > 0n)
           return json({
             status: tx.status,
@@ -228,7 +228,7 @@ export async function GET(request: Request) {
     return json({
       status: tx.status,
       hash: tx.transaction_hash,
-      retryable: await canRetryCheque(record, tx),
+      retryable: await canRetrySpook(record, tx),
     })
   } catch {
     return json({ error: "Unable to check the transaction yet." }, 503)

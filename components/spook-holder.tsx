@@ -8,28 +8,28 @@ import { BackTitle } from "@/components/back-title"
 import { ExternalLink } from "@/components/external-link"
 import { NetworkSelect } from "@/components/network-select"
 import { ChainName } from "@/components/chain-name"
-import { OpenCheque } from "@/components/spender/open-cheque"
+import { OpenSpook } from "@/components/spender/open-spook"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { QrScanner } from "@/components/qr-scanner"
 import { deliveryStatus, forwardingFee, type Delivery } from "@/lib/cctp"
-import { readChequeFragment } from "@/lib/cheque-link"
+import { readSpookFragment } from "@/lib/spook-link"
 import { EXPLORER, monad } from "@/lib/chain"
 import {
   errorMessage,
   planPayment,
-  readCheque,
+  readSpook,
   sendPayment,
   waitForPayment,
-  type ChequeState,
+  type SpookState,
   type PaymentPlan,
-} from "@/lib/cheque-payment"
+} from "@/lib/spook-payment"
 import { formatUsdc, parseUsdc, shortAddress } from "@/lib/money"
 import { isLocal, networkByChainId, type Network } from "@/lib/networks"
 import { parsePaymentRequest, type PaymentRequest } from "@/lib/payment-request"
 
-type Cheque = { book: Address; key: Hex; signer: Address }
+type Spook = { book: Address; key: Hex; signer: Address }
 
 // Survives a refresh mid-payment so the holder sees the outcome instead of paying twice.
 type Pending = {
@@ -49,7 +49,7 @@ type Stage =
   | { kind: "confirm"; request: Partial<PaymentRequest> }
   | { kind: "payment"; pending: Pending }
 
-const pendingKey = (signer: Address) => `pippo:pending:${monad.id}:${signer}`
+const pendingKey = (signer: Address) => `spookly:pending:${monad.id}:${signer}`
 const savePending = (signer: Address, pending: Pending | null) => {
   try {
     if (pending)
@@ -65,14 +65,14 @@ const loadPending = (signer: Address): Pending | null => {
   }
 }
 
-export function ChequeHolder() {
-  const [cheque, setCheque] = useState<Cheque | null>()
+export function SpookHolder() {
+  const [spook, setSpook] = useState<Spook | null>()
   const [emptyLink, setEmptyLink] = useState(false)
-  const [state, setState] = useState<ChequeState | null>(null)
+  const [state, setState] = useState<SpookState | null>(null)
   const [stage, setStage] = useState<Stage>({ kind: "scan" })
   // The confirm step gets its own history entry, so the phone's back gesture returns to the scanner.
   const openConfirm = (request: Partial<PaymentRequest>) => {
-    history.pushState({ pippo: "confirm" }, "")
+    history.pushState({ spookly: "confirm" }, "")
     setStage({ kind: "confirm", request })
   }
   useEffect(() => {
@@ -88,10 +88,10 @@ export function ChequeHolder() {
   useEffect(() => {
     const read = () => {
       setEmptyLink(!window.location.hash)
-      const parsed = readChequeFragment(window.location.hash)
-      if (!parsed) return setCheque(null)
+      const parsed = readSpookFragment(window.location.hash)
+      if (!parsed) return setSpook(null)
       const signer = privateKeyToAccount(parsed.key).address
-      setCheque({ ...parsed, signer })
+      setSpook({ ...parsed, signer })
       const pending = loadPending(signer)
       setStage(pending ? { kind: "payment", pending } : { kind: "scan" })
     }
@@ -101,14 +101,14 @@ export function ChequeHolder() {
   }, [])
 
   const refresh = useCallback(async () => {
-    if (!cheque) return
+    if (!spook) return
     try {
-      setState(await readCheque(cheque.book, cheque.signer))
+      setState(await readSpook(spook.book, spook.signer))
       setLoadError(null)
     } catch {
-      setLoadError("Couldn't load this cheque. Check your connection.")
+      setLoadError("Couldn't load this Spook. Check your connection.")
     }
-  }, [cheque])
+  }, [spook])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading external chain state
@@ -116,7 +116,7 @@ export function ChequeHolder() {
   }, [refresh])
 
   // Loading renders the scanner layout itself, so the real content drops in without anything moving.
-  const scanScreen = (current: ChequeState | null) => (
+  const scanScreen = (current: SpookState | null) => (
     <Shell>
       <div className="flex h-9 items-baseline justify-between gap-3">
         {current ? (
@@ -160,14 +160,14 @@ export function ChequeHolder() {
     </Shell>
   )
 
-  if (cheque === undefined) return scanScreen(null)
-  if (cheque === null)
+  if (spook === undefined) return scanScreen(null)
+  if (spook === null)
     return (
       <Shell>
         {emptyLink ? (
-          <OpenCheque />
+          <OpenSpook />
         ) : (
-          <Message title="This link isn't a cheque">
+          <Message title="This link isn't a Spook">
             Ask the issuer to share the full link again.
           </Message>
         )}
@@ -178,12 +178,12 @@ export function ChequeHolder() {
     return (
       <Shell>
         <PaymentProgress
-          cheque={cheque}
+          spook={spook}
           pending={stage.pending}
           onFinish={() => {
-            savePending(cheque.signer, null)
+            savePending(spook.signer, null)
             setStage({ kind: "scan" })
-            if (history.state?.pippo === "payment") history.back()
+            if (history.state?.spookly === "payment") history.back()
             refresh()
           }}
         />
@@ -199,17 +199,17 @@ export function ChequeHolder() {
       scanScreen(null)
     )
 
-  const expired = state.expiry * 1000 <= state.checkedAt
+  const expired = state.expiry * 1000 <= state.refreshedAt
   if (!state.active || expired || state.remaining === 0n)
     return (
       <Shell>
         <Message
           title={
             !state.active
-              ? "This cheque was cancelled"
+              ? "This Spook was cancelled"
               : expired
-                ? "This cheque has expired"
-                : "This cheque is used up"
+                ? "This Spook has expired"
+                : "This Spook is used up"
           }
         >
           Ask the issuer for a new one.
@@ -222,13 +222,13 @@ export function ChequeHolder() {
       <Shell>
         <BackTitle title="Confirm payment" onBack={() => history.back()} />
         <ConfirmPayment
-          cheque={cheque}
+          spook={spook}
           state={state}
           request={stage.request}
           onSent={(pending) => {
-            savePending(cheque.signer, pending)
+            savePending(spook.signer, pending)
             // The payment replaces the confirm entry: going back must not reopen a form for a sent payment.
-            history.replaceState({ pippo: "payment" }, "")
+            history.replaceState({ spookly: "payment" }, "")
             setStage({ kind: "payment", pending })
           }}
         />
@@ -239,13 +239,13 @@ export function ChequeHolder() {
 }
 
 function ConfirmPayment({
-  cheque,
+  spook,
   state,
   request,
   onSent,
 }: {
-  cheque: Cheque
-  state: ChequeState
+  spook: Spook
+  state: SpookState
   request: Partial<PaymentRequest>
   onSent: (pending: Pending) => void
 }) {
@@ -296,8 +296,8 @@ function ConfirmPayment({
     setError(null)
     try {
       const plan: PaymentPlan = await planPayment(
-        cheque.book,
-        cheque.signer,
+        spook.book,
+        spook.signer,
         network,
         getAddress(recipient),
         amount
@@ -309,8 +309,8 @@ function ConfirmPayment({
         fee: plan.fee.toString(),
       }
       const { userOpHash, fromBlock } = await sendPayment(
-        cheque.book,
-        cheque.key,
+        spook.book,
+        spook.key,
         plan
       )
       onSent({ ...base, userOpHash, fromBlock: fromBlock.toString() })
@@ -387,7 +387,7 @@ function ConfirmPayment({
                 ? "Free"
                 : formatUsdc(currentFee)}
         </dd>
-        <dt className="font-semibold">From your cheque</dt>
+        <dt className="font-semibold">From your Spook</dt>
         <dd className="font-semibold tabular-nums">
           {total === null ? "—" : formatUsdc(total)}
         </dd>
@@ -423,11 +423,11 @@ function ConfirmPayment({
 }
 
 function PaymentProgress({
-  cheque,
+  spook,
   pending: initial,
   onFinish,
 }: {
-  cheque: Cheque
+  spook: Spook
   pending: Pending
   onFinish: () => void
 }) {
@@ -443,7 +443,7 @@ function PaymentProgress({
     let cancelled = false
     const update = (next: Pending) => {
       if (cancelled) return
-      savePending(cheque.signer, next)
+      savePending(spook.signer, next)
       setPending(next)
     }
     ;(async () => {
@@ -498,7 +498,7 @@ function PaymentProgress({
     ? [{ label: "Payment sent", done: !!pending.transactionHash, chain: null }]
     : [
         {
-          label: "Sent from your cheque",
+          label: "Sent from your Spook",
           done: !!pending.transactionHash,
           chain: null,
         },
@@ -593,7 +593,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-md min-w-0 flex-col gap-4 pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]">
       <header className="mb-2 text-sm font-semibold tracking-widest uppercase">
-        Pippo cheque
+        Spookly Spook
       </header>
       {children}
     </main>

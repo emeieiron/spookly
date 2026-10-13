@@ -18,7 +18,7 @@ import {
   toSmartAccount,
   type UserOperation,
 } from "viem/account-abstraction"
-import { chequeBookAbi } from "./abi"
+import { spookBookAbi } from "./abi"
 import { forwardingFee } from "./cctp"
 import { ENTRY_POINT, monad } from "./chain"
 import { isLocal, type Network } from "./networks"
@@ -28,29 +28,29 @@ export const publicClient = createPublicClient({
   transport: http(),
 })
 
-export type ChequeState = {
+export type SpookState = {
   remaining: bigint
   expiry: number
   active: boolean
   gasLeft: bigint
   gasBalance: bigint
-  checkedAt: number
+  refreshedAt: number
 }
 
-export async function readCheque(
+export async function readSpook(
   book: Address,
   signer: Address
-): Promise<ChequeState> {
+): Promise<SpookState> {
   const [[remaining, expiry, active, gasLeft], gasBalance] = await Promise.all([
     publicClient.readContract({
       address: book,
-      abi: chequeBookAbi,
-      functionName: "cheques",
+      abi: spookBookAbi,
+      functionName: "spooks",
       args: [signer],
     }),
     publicClient.readContract({
       address: book,
-      abi: chequeBookAbi,
+      abi: spookBookAbi,
       functionName: "gasBalance",
     }),
   ])
@@ -60,7 +60,7 @@ export async function readCheque(
     active,
     gasLeft,
     gasBalance,
-    checkedAt: Date.now(),
+    refreshedAt: Date.now(),
   }
 }
 
@@ -82,7 +82,7 @@ export async function planPayment(
 ): Promise<PaymentPlan> {
   if (isLocal(network)) {
     const callData = encodeFunctionData({
-      abi: chequeBookAbi,
+      abi: spookBookAbi,
       functionName: "pay",
       args: [signer, recipient, amount],
     })
@@ -91,14 +91,14 @@ export async function planPayment(
   const fee = await forwardingFee(network.domain)
   const total = amount + fee
   const callData = encodeFunctionData({
-    abi: chequeBookAbi,
+    abi: spookBookAbi,
     functionName: "payCrossChain",
     args: [signer, network.domain, pad(recipient, { size: 32 }), total, fee],
   })
   return { network, recipient, amount, fee, total, callData }
 }
 
-function chequeAccount(book: Address, key: Hex) {
+function spookAccount(book: Address, key: Hex) {
   const signer = privateKeyToAccount(key)
   return toSmartAccount({
     client: publicClient,
@@ -108,7 +108,7 @@ function chequeAccount(book: Address, key: Hex) {
       factory: undefined,
       factoryData: undefined,
     }),
-    // Each cheque has its own nonce sequence keyed by its signer address.
+    // Each spook has its own nonce sequence keyed by its signer address.
     getNonce: async () =>
       publicClient.readContract({
         address: ENTRY_POINT,
@@ -133,10 +133,10 @@ function chequeAccount(book: Address, key: Hex) {
         },
       }),
     signMessage: async () => {
-      throw new Error("Cheque keys only sign payments.")
+      throw new Error("Spook keys only sign payments.")
     },
     signTypedData: async () => {
-      throw new Error("Cheque keys only sign payments.")
+      throw new Error("Spook keys only sign payments.")
     },
   })
 }
@@ -170,12 +170,12 @@ export async function sendPayment(
   plan: PaymentPlan,
   bundlerUrl = "/api/bundler"
 ): Promise<Sent> {
-  const state = await readCheque(book, privateKeyToAccount(key).address)
-  if (!state.active) throw new Error("This cheque has been cancelled.")
+  const state = await readSpook(book, privateKeyToAccount(key).address)
+  if (!state.active) throw new Error("This spook has been cancelled.")
   if (state.expiry * 1000 <= Date.now())
-    throw new Error("This cheque has expired.")
+    throw new Error("This spook has expired.")
   if (plan.total > state.remaining)
-    throw new Error("That's more than this cheque has left.")
+    throw new Error("That's more than this spook has left.")
   try {
     await publicClient.call({
       account: ENTRY_POINT,
@@ -188,7 +188,7 @@ export async function sendPayment(
     )
   }
 
-  const account = await chequeAccount(book, key)
+  const account = await spookAccount(book, key)
   const bundler = createBundlerClient({
     account,
     client: publicClient,
@@ -216,7 +216,7 @@ export async function sendPayment(
     prepared.maxFeePerGas
   if (cost > state.gasLeft || cost > state.gasBalance)
     throw new Error(
-      "This cheque's fee allowance has run out. Ask the issuer to top it up."
+      "This spook's fee allowance has run out. Ask the issuer to top it up."
     )
 
   const signature = await account.signUserOperation(prepared)

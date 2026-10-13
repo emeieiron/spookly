@@ -5,8 +5,8 @@ import { toHex } from "viem"
 import { IS_MAINNET, monad } from "./chain"
 import { createSponsorSender } from "./sponsor-client"
 import { readPendingSponsor } from "./sponsor-pending"
-import { publicClient } from "./cheque-payment"
-import { sendChecked, type SignerClient } from "./wallet-send"
+import { publicClient } from "./spook-payment"
+import { sendValidated, type SignerClient } from "./wallet-send"
 import { GET, POST } from "../app/api/sponsor/route"
 
 const owner = privateKeyToAccount(toHex(1n, { size: 32 }))
@@ -35,7 +35,7 @@ test("wallet transactions reject another network before authorization or submiss
     throw new Error("Must not authorize")
   })
   await assert.rejects(
-    sendChecked(client, owner.address, "0x12345678", 0n, sponsor),
+    sendValidated(client, owner.address, "0x12345678", 0n, sponsor),
     /Please connect/
   )
   assert.equal(sponsor.mock.callCount(), 0)
@@ -45,7 +45,7 @@ test(
   "mainnet ignores testnet sponsorship records and credentials on both client and server",
   { skip: !IS_MAINNET },
   async () => {
-    const key = `pippo:sponsor:10143:${owner.address.toLowerCase()}`
+    const key = `spookly:sponsor:10143:${owner.address.toLowerCase()}`
     storage.set(key, "unresolved-testnet-record")
     assert.equal(readPendingSponsor(owner.address), null)
     const fetch = mock.method(globalThis, "fetch", async () => {

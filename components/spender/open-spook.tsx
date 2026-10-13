@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { spenderLinkFragment } from "@/lib/spender-link"
 
-export function OpenCheque() {
+export function OpenSpook() {
   const id = useId()
   const [link, setLink] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -19,7 +19,7 @@ export function OpenCheque() {
         const fragment = spenderLinkFragment(link, window.location.origin)
         if (!fragment) {
           setError(
-            "Paste the full cheque link from this Pippo site, including the part after #."
+            "Paste the full Spook link from this Spookly site, including the part after #."
           )
           return
         }
@@ -27,13 +27,13 @@ export function OpenCheque() {
         window.location.hash = fragment
       }}
     >
-      <h1 className="text-xl font-semibold">Open a cheque</h1>
+      <h1 className="text-xl font-semibold">Open a Spook</h1>
       <p className="text-sm text-muted-foreground">
         Paste the link shared with you to scan a payment code or enter an
         address.
       </p>
       <div className="flex flex-col gap-2">
-        <Label htmlFor={id}>Cheque link</Label>
+        <Label htmlFor={id}>Spook link</Label>
         <Input
           id={id}
           type="text"
@@ -45,7 +45,7 @@ export function OpenCheque() {
           enterKeyHint="go"
           required
           className="h-12 text-base"
-          placeholder="https://…/c#…"
+          placeholder="https://…/spook#…"
           value={link}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : `${id}-help`}
@@ -65,7 +65,7 @@ export function OpenCheque() {
         )}
       </div>
       <Button type="submit" size="lg">
-        Open cheque
+        Open Spook
       </Button>
       <p id={`${id}-help`} className="text-xs text-muted-foreground">
         Keep the link private. Anyone with it can spend it. An internet

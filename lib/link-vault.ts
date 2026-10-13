@@ -6,10 +6,10 @@ import {
 import { bytesToHex, hexToBytes, isHex, type Address, type Hex } from "viem"
 import { privateKeyToAddress } from "viem/accounts"
 
-// "One passkey, many keys": a Pippo-specific PRF salt gives one 32-byte output per passkey, identical on every
+// "One passkey, many keys": a Spookly-specific PRF salt gives one 32-byte output per passkey, identical on every
 // device the passkey syncs to. HKDF splits it into keys that never sign anything: an AES-GCM key that seals
-// cheque links, and an id that tells a matching passkey from a different one.
-const NAMESPACE = "pippo.v1.cheque-links"
+// spook links, and an id that tells a matching passkey from a different one.
+const NAMESPACE = "spookly.v1.spook-links"
 const VERSION = 1
 const AAD = new TextEncoder().encode(NAMESPACE)
 const SEALED_LENGTH = 1 + 8 + 12 + 32 + 16
@@ -49,25 +49,25 @@ export async function deriveVault(prfOutput: Uint8Array): Promise<LinkVault> {
   return { key, id }
 }
 
-// Sealed layout: version (1) | key id (8) | nonce (12) | AES-GCM ciphertext of the 32-byte cheque key (48).
+// Sealed layout: version (1) | key id (8) | nonce (12) | AES-GCM ciphertext of the 32-byte spook key (48).
 // The seal is opened again before it is returned, so a broken one never reaches the chain.
-export async function sealChequeKey(
+export async function sealSpookKey(
   vault: LinkVault,
-  chequeKey: Hex
+  spookKey: Hex
 ): Promise<Hex> {
   const nonce = crypto.getRandomValues(new Uint8Array(12))
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt(
       { name: "AES-GCM", iv: nonce, additionalData: AAD },
       vault.key,
-      new Uint8Array(hexToBytes(chequeKey))
+      new Uint8Array(hexToBytes(spookKey))
     )
   )
   const sealed = bytesToHex(
     new Uint8Array([VERSION, ...hexToBytes(vault.id), ...nonce, ...ciphertext])
   )
-  const signer = privateKeyToAddress(chequeKey)
-  if ((await openChequeKey(vault, sealed, signer)) !== chequeKey)
+  const signer = privateKeyToAddress(spookKey)
+  if ((await openSpookKey(vault, sealed, signer)) !== spookKey)
     throw new Error("Couldn't back up this link. Try again.")
   return sealed
 }
@@ -78,8 +78,8 @@ export const sealedKeyId = (sealed: Hex): Hex | null => {
   return bytes[0] === VERSION ? bytesToHex(bytes.slice(1, 9)) : null
 }
 
-// Resolves to the cheque key only when it decrypts and controls `signer`, so a damaged or misplaced seal reads as null.
-export async function openChequeKey(
+// Resolves to the spook key only when it decrypts and controls `signer`, so a damaged or misplaced seal reads as null.
+export async function openSpookKey(
   vault: LinkVault,
   sealed: Hex,
   signer: Address
@@ -102,8 +102,8 @@ export async function openChequeKey(
   }
 }
 
-// The derived key is kept per device as a non-extractable CryptoKey, so sealing a new cheque needs no prompt.
-const DB = "pippo"
+// The derived key is kept per device as a non-extractable CryptoKey, so sealing a new spook needs no prompt.
+const DB = "spookly"
 const STORE = "link-vault"
 let opening: Promise<IDBDatabase> | null = null
 const db = () =>
@@ -201,11 +201,11 @@ export async function createVault(
   let vault: LinkVault
   try {
     const { prfOutput } = await createPasskeyWithPrfOutput({
-      rp: { id: location.hostname, name: "Pippo" },
+      rp: { id: location.hostname, name: "Spookly" },
       // The date tells passkeys apart in the browser's picker if a lost one is ever replaced.
       user: {
         name: `${label} · ${new Date().toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`,
-        displayName: "Pippo cheque links",
+        displayName: "Spookly spook links",
       },
       prfSalt: await prfSalt(),
     })
@@ -217,7 +217,7 @@ export async function createVault(
   return vault
 }
 
-// `knownIds` are the ids sealed into the cheque book. Any of them is accepted, since each cheque opens only with
+// `knownIds` are the ids sealed into the spook book. Any of them is accepted, since each spook opens only with
 // the passkey that sealed it; a passkey matching none of them belongs to someone or something else.
 export async function unlockVault(
   owner: Address,
@@ -235,7 +235,7 @@ export async function unlockVault(
   }
   if (knownIds.length > 0 && !knownIds.includes(vault.id))
     throw new Error(
-      "That passkey didn't lock these links. Choose the passkey you used to write them."
+      "That passkey didn't lock these links. Choose the passkey you used to create them."
     )
   await saveVault(owner, vault)
   return vault

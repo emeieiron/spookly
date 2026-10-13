@@ -148,8 +148,8 @@ export function createSponsorSender({
         const status = await response.json()
         if (status.blocked) throw new Error(status.error ?? pendingMessage)
         if (["failed", "execution_reverted"].includes(status.status)) {
-          // An older attempt for this same cheque may still execute. Retain
-          // its draft until the unique cheque key is reconciled on-chain.
+          // An older attempt for this same spook may still execute. Retain
+          // its draft until the unique spook key is reconciled on-chain.
           if (pending.previousIds.length) throw new Error(pendingMessage)
           clearPendingSponsor(from)
           throw new FinalTransactionError(

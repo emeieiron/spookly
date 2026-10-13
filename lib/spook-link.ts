@@ -20,10 +20,10 @@ const decode = (text: string) =>
   )
 
 // The key lives in the URL fragment, which browsers never send to the server.
-export const chequeLink = (origin: string, book: Address, key: Hex) =>
-  `${origin}/c#${encode(book)}.${encode(key)}`
+export const spookLink = (origin: string, book: Address, key: Hex) =>
+  `${origin}/spook#${encode(book)}.${encode(key)}`
 
-export function readChequeFragment(
+export function readSpookFragment(
   fragment: string
 ): { book: Address; key: Hex } | null {
   try {

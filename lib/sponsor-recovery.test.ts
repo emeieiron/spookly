@@ -8,7 +8,7 @@ import {
   zeroHash,
 } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { chequeBookAbi } from "./abi"
+import { spookBookAbi } from "./abi"
 import { USDC, erc20Abi, ENTRY_POINT } from "./chain"
 import {
   reserveShortfall,
@@ -24,10 +24,7 @@ import {
   sponsorExecution,
   PRIVY_TESTNET_DELEGATE,
 } from "./server/sponsor-execution"
-import {
-  canRetryCheque,
-  sameChequeTransaction,
-} from "./server/sponsor-recovery"
+import { canRetrySpook, sameSpookTransaction } from "./server/sponsor-recovery"
 
 const owner = privateKeyToAccount(toHex(1n, { size: 32 })).address
 const signer = privateKeyToAccount(toHex(2n, { size: 32 })).address
@@ -39,8 +36,8 @@ const transaction = {
   to: book,
   value: toHex(parseEther("0.2164")),
   data: encodeFunctionData({
-    abi: chequeBookAbi,
-    functionName: "fundAndWrite",
+    abi: spookBookAbi,
+    functionName: "fundAndSpook",
     args: [
       signer,
       10000n,
@@ -138,7 +135,7 @@ test("full batch estimation uses actual delegated code and balances, including e
   )
 })
 
-test("guarded retry requires an absent cheque, current ownership, correct network, and elapsed delay", async () => {
+test("guarded retry requires an absent spook, current ownership, correct network, and elapsed delay", async () => {
   let exists = false
   let owning = owner
   mock.method(
@@ -149,38 +146,38 @@ test("guarded retry requires an absent cheque, current ownership, correct networ
         ? owning
         : [0n, exists ? 1n : 0n, false, 0n, 0n]
   )
-  assert.equal(await canRetryCheque(record, status, now), true)
-  assert.equal(await canRetryCheque(record, status, now - 120000), false)
+  assert.equal(await canRetrySpook(record, status, now), true)
+  assert.equal(await canRetrySpook(record, status, now - 120000), false)
   assert.equal(
-    await canRetryCheque(record, { ...status, caip2: "eip155:143" }, now),
+    await canRetrySpook(record, { ...status, caip2: "eip155:143" }, now),
     false
   )
   assert.equal(
-    await canRetryCheque(record, { ...status, wallet_id: "other" }, now),
+    await canRetrySpook(record, { ...status, wallet_id: "other" }, now),
     false
   )
-  exists = true // Cancelled cheques still have an expiry and cannot be retried.
-  assert.equal(await canRetryCheque(record, status, now), false)
+  exists = true // Cancelled spooks still have an expiry and cannot be retried.
+  assert.equal(await canRetrySpook(record, status, now), false)
   exists = false
   owning = signer
-  assert.equal(await canRetryCheque(record, status, now), false)
+  assert.equal(await canRetrySpook(record, status, now), false)
 })
 
-test("a retry cannot change cheque key, calldata, target or native amount; transfers cannot retry", async () => {
-  assert.equal(sameChequeTransaction(record, transaction), true)
+test("a retry cannot change spook key, calldata, target or native amount; transfers cannot retry", async () => {
+  assert.equal(sameSpookTransaction(record, transaction), true)
   assert.equal(
-    sameChequeTransaction(record, { ...transaction, value: "0x0" }),
+    sameSpookTransaction(record, { ...transaction, value: "0x0" }),
     false
   )
   assert.equal(
-    sameChequeTransaction(record, {
+    sameSpookTransaction(record, {
       ...transaction,
       data: `${transaction.data}00`,
     }),
     false
   )
   assert.equal(
-    sameChequeTransaction(record, { ...transaction, to: USDC }),
+    sameSpookTransaction(record, { ...transaction, to: USDC }),
     false
   )
   const transfer = {
@@ -197,5 +194,5 @@ test("a retry cannot change cheque key, calldata, target or native amount; trans
     ...record,
     request: sponsorRequest("app", "wallet", "id", transfer, record.expiresAt),
   }
-  assert.equal(await canRetryCheque(item, status, now), false)
+  assert.equal(await canRetrySpook(item, status, now), false)
 })

@@ -40,10 +40,10 @@ export function useFundingSession(account: string) {
     }
     load()
     window.addEventListener("storage", load)
-    window.addEventListener("pippo-funding", load)
+    window.addEventListener("spookly-funding", load)
     return () => {
       window.removeEventListener("storage", load)
-      window.removeEventListener("pippo-funding", load)
+      window.removeEventListener("spookly-funding", load)
     }
   }, [account])
   const save = (value: FundingSession | null) => {
@@ -57,7 +57,7 @@ export function useFundingSession(account: string) {
       )
     } else localStorage.removeItem(key)
     setSession(value)
-    window.dispatchEvent(new Event("pippo-funding"))
+    window.dispatchEvent(new Event("spookly-funding"))
   }
   const close = () => {
     if (!session || !canCloseUnpaid(session, Date.now())) return

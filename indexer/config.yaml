@@ -1,33 +1,33 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
-name: pippo
-description: Pippo cheques on Monad testnet and their Circle CCTP deliveries on nine other networks
+name: spookly
+description: Spookly spooks on Monad testnet and their Circle CCTP deliveries on nine other networks
 rollback_on_reorg: true
 address_format: lowercase
 
 contracts:
-  - name: ChequeBookFactory
+  - name: SpookBookFactory
     events:
       - event: "BookCreated(address indexed owner, address book)"
-  - name: ChequeBook
+  - name: SpookBook
     events:
-      - event: "ChequeWritten(address indexed signer, uint256 amount, uint64 expiry, uint256 gasBudget)"
-      - event: "ChequeCancelled(address indexed signer, uint256 released)"
+      - event: "SpookCreated(address indexed signer, uint256 amount, uint64 expiry, uint256 gasBudget)"
+      - event: "SpookCancelled(address indexed signer, uint256 released)"
       - event: "Paid(address indexed signer, address indexed recipient, uint256 amount)"
       - event: "PaidCrossChain(address indexed signer, uint32 indexed domain, bytes32 recipient, uint256 amount, uint256 maxFee)"
   # Circle CCTP MessageTransmitterV2, at the same address on every testnet. Its MessageReceived carries the burn
-  # message, which names the paying cheque book as messageSender.
+  # message, which names the paying spook book as messageSender.
   - name: MessageTransmitter
     events:
       - event: "MessageReceived(address indexed caller, uint32 sourceDomain, bytes32 indexed nonce, bytes32 sender, uint32 indexed finalityThresholdExecuted, bytes messageBody)"
 
-# Start blocks match the factory deployment (2026-10-11 08:40 UTC) on every chain.
+# Source indexing starts at the configured factory deployment.
 chains:
   - id: 10143 # Monad testnet
-    start_block: 70066024
+    start_block: 70781014
     contracts:
-      - name: ChequeBookFactory
-        address: "0xe51e48f765440c9c4187a11c78b17a810232d4f8"
-      - name: ChequeBook
+      - name: SpookBookFactory
+        address: "0xd93f67d2735e3af22e699d65aeaa6147db2c9214"
+      - name: SpookBook
   - id: 84532 # Base Sepolia
     start_block: 47969859
     contracts:

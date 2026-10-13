@@ -8,7 +8,7 @@ import {
   zeroAddress,
   type Address,
 } from "viem"
-import { chequeBookAbi, factoryAbi } from "../abi"
+import { spookBookAbi, factoryAbi } from "../abi"
 import { FACTORY, USDC, erc20Abi, monad } from "../chain"
 import {
   SPONSOR_CHAIN_ID,
@@ -68,23 +68,23 @@ export function allowedSponsorCall(
   try {
     if (FACTORY && tx.to === getAddress(FACTORY)) {
       const call = decodeFunctionData({ abi: factoryAbi, data: tx.data })
-      if (call.functionName !== "createAndWrite" || book) return false
+      if (call.functionName !== "createAndSpook" || book) return false
       return (
         encodeFunctionData({ abi: factoryAbi, ...call }).toLowerCase() ===
         tx.data.toLowerCase()
       )
     }
     if (book && tx.to === getAddress(book)) {
-      const call = decodeFunctionData({ abi: chequeBookAbi, data: tx.data })
+      const call = decodeFunctionData({ abi: spookBookAbi, data: tx.data })
       if (
-        call.functionName !== "fundAndWrite" &&
+        call.functionName !== "fundAndSpook" &&
         call.functionName !== "cancel"
       )
         return false
       if (call.functionName === "cancel" && BigInt(tx.value) !== 0n)
         return false
       return (
-        encodeFunctionData({ abi: chequeBookAbi, ...call }).toLowerCase() ===
+        encodeFunctionData({ abi: spookBookAbi, ...call }).toLowerCase() ===
         tx.data.toLowerCase()
       )
     }
@@ -105,11 +105,11 @@ export function allowedSponsorCall(
 export function sponsorApproval(tx: SponsorTransaction): bigint {
   if (FACTORY && tx.to === getAddress(FACTORY)) {
     const call = decodeFunctionData({ abi: factoryAbi, data: tx.data })
-    return call.functionName === "createAndWrite" ? call.args[1] : 0n
+    return call.functionName === "createAndSpook" ? call.args[1] : 0n
   }
   if (tx.to === getAddress(USDC)) return 0n
-  const call = decodeFunctionData({ abi: chequeBookAbi, data: tx.data })
-  return call.functionName === "fundAndWrite" ? call.args[4] : 0n
+  const call = decodeFunctionData({ abi: spookBookAbi, data: tx.data })
+  return call.functionName === "fundAndSpook" ? call.args[4] : 0n
 }
 
 export async function validateSponsorTransaction(tx: SponsorTransaction) {

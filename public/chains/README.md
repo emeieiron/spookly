@@ -2,7 +2,7 @@
 
 Locally served, self-contained SVGs from `@web3icons/core` 4.0.58
 ([Web3Icons](https://github.com/0xa3k5/web3icons)), under the included MIT license.
-Only the 39 logos used by Pippo's Aurora sources and payout networks are included;
+Only the 39 logos used by Spookly's Aurora sources and payout networks are included;
 the full icon library is not a runtime dependency. Whitespace and the unused root
 class were removed. Background variants keep logos visible on both light and dark
 surfaces. Native coin artwork is used for ADI, Aleo, Bitcoin Cash, Dash, Dogecoin,

@@ -38,10 +38,10 @@ function usePermit(IERC20 token, address owner, address spender, uint256 value, 
     try IERC20Permit(address(token)).permit(owner, spender, value, p.deadline, p.v, p.r, p.s) {} catch {}
 }
 
-contract ChequeBook is IAccount {
+contract SpookBook is IAccount {
     using SafeERC20 for IERC20;
 
-    struct Cheque {
+    struct Spook {
         uint128 remaining;
         uint64 expiry;
         bool active;
@@ -60,10 +60,10 @@ contract ChequeBook is IAccount {
     ITokenMessengerV2 public immutable messenger;
 
     uint256 public reserved;
-    // Fee allowance still unspent by active cheques; deposit above this belongs to the owner.
+    // Fee allowance still unspent by active spooks; deposit above this belongs to the owner.
     uint256 public committedGas;
-    mapping(address => Cheque) public cheques;
-    // The cheque's one-off key, sealed with a key only the issuer's passkey can derive, so its link can be
+    mapping(address => Spook) public spooks;
+    // The spook's one-off key, sealed with a key only the issuer's passkey can derive, so its link can be
     // restored on any device. Opaque to the contract.
     mapping(address => bytes) public sealedKeys;
     address[] private signers;
@@ -72,8 +72,8 @@ contract ChequeBook is IAccount {
     error InvalidValue();
     error Unavailable();
 
-    event ChequeWritten(address indexed signer, uint256 amount, uint64 expiry, uint256 gasBudget);
-    event ChequeCancelled(address indexed signer, uint256 released);
+    event SpookCreated(address indexed signer, uint256 amount, uint64 expiry, uint256 gasBudget);
+    event SpookCancelled(address indexed signer, uint256 released);
     event Paid(address indexed signer, address indexed recipient, uint256 amount);
     event PaidCrossChain(
         address indexed signer, uint32 indexed domain, bytes32 recipient, uint256 amount, uint256 maxFee
@@ -94,7 +94,7 @@ contract ChequeBook is IAccount {
         if (msg.sender != owner) revert Unauthorized();
         _;
     }
-    // The factory writes the first cheque of a book it has just created, in the same transaction.
+    // The factory creates the first spook of a book it has just created, in the same transaction.
     modifier onlyOwnerOrFactory() {
         if (msg.sender != owner && msg.sender != factory) revert Unauthorized();
         _;
@@ -117,30 +117,30 @@ contract ChequeBook is IAccount {
         return entryPoint.balanceOf(address(this));
     }
 
-    function chequeCount() external view returns (uint256) {
+    function spookCount() external view returns (uint256) {
         return signers.length;
     }
 
-    function write(address signer, uint128 amount, uint64 expiry, uint128 gasBudget, bytes calldata sealedKey)
+    function spook(address signer, uint128 amount, uint64 expiry, uint128 gasBudget, bytes calldata sealedKey)
         public
         onlyOwnerOrFactory
     {
-        // A key can be written once, so a cancelled link never becomes spendable again.
-        if (signer == address(0) || cheques[signer].expiry != 0) revert InvalidValue();
+        // A key can be created once, so a cancelled link never becomes spendable again.
+        if (signer == address(0) || spooks[signer].expiry != 0) revert InvalidValue();
         if (amount == 0 || expiry <= block.timestamp || gasBudget == 0) revert InvalidValue();
         if (amount > available()) revert Unavailable();
         reserved += amount;
         committedGas += gasBudget;
         if (sealedKey.length > 128) revert InvalidValue();
-        cheques[signer] = Cheque(amount, expiry, true, gasBudget, amount);
+        spooks[signer] = Spook(amount, expiry, true, gasBudget, amount);
         if (sealedKey.length > 0) sealedKeys[signer] = sealedKey;
         signers.push(signer);
-        emit ChequeWritten(signer, amount, expiry, gasBudget);
+        emit SpookCreated(signer, amount, expiry, gasBudget);
     }
 
-    /// One transaction per cheque: tops up the fee deposit with msg.value, pulls `pull` USDC from the owner
-    /// (with an optional permit), then writes the cheque.
-    function fundAndWrite(
+    /// One transaction per spook: tops up the fee deposit with msg.value, pulls `pull` USDC from the owner
+    /// (with an optional permit), then creates the spook.
+    function fundAndSpook(
         address signer,
         uint128 amount,
         uint64 expiry,
@@ -154,12 +154,12 @@ contract ChequeBook is IAccount {
             usePermit(usdc, owner, address(this), pull, permit);
             usdc.safeTransferFrom(owner, address(this), pull);
         }
-        write(signer, amount, expiry, gasBudget, sealedKey);
+        spook(signer, amount, expiry, gasBudget, sealedKey);
     }
 
-    /// Ends a cheque and returns its unspent USDC plus all fee deposit no live cheque needs to the owner.
+    /// Ends a spook and returns its unspent USDC plus all fee deposit no live spook needs to the owner.
     function cancel(address signer) external onlyOwner {
-        Cheque storage c = cheques[signer];
+        Spook storage c = spooks[signer];
         if (!c.active) revert Unavailable();
         uint256 refund = c.remaining;
         reserved -= refund;
@@ -170,10 +170,10 @@ contract ChequeBook is IAccount {
         if (refund > 0) usdc.safeTransfer(owner, refund);
         uint256 deposit = entryPoint.balanceOf(address(this));
         if (deposit > committedGas) entryPoint.withdrawTo(payable(owner), deposit - committedGas);
-        emit ChequeCancelled(signer, refund);
+        emit SpookCancelled(signer, refund);
     }
 
-    struct ChequeView {
+    struct SpookView {
         address signer;
         uint128 amount;
         uint128 remaining;
@@ -183,13 +183,13 @@ contract ChequeBook is IAccount {
         bytes sealedKey;
     }
 
-    function list(uint256 start, uint256 count) external view returns (ChequeView[] memory out) {
+    function list(uint256 start, uint256 count) external view returns (SpookView[] memory out) {
         uint256 end = start + count > signers.length ? signers.length : start + count;
-        out = new ChequeView[](end > start ? end - start : 0);
+        out = new SpookView[](end > start ? end - start : 0);
         for (uint256 i = start; i < end; i++) {
-            Cheque memory c = cheques[signers[i]];
+            Spook memory c = spooks[signers[i]];
             out[i - start] =
-                ChequeView(signers[i], c.amount, c.remaining, c.expiry, c.active, c.gasLeft, sealedKeys[signers[i]]);
+                SpookView(signers[i], c.amount, c.remaining, c.expiry, c.active, c.gasLeft, sealedKeys[signers[i]]);
         }
     }
 
@@ -215,15 +215,15 @@ contract ChequeBook is IAccount {
     }
 
     function spend(address signer, uint256 amount) private {
-        Cheque storage c = cheques[signer];
+        Spook storage c = spooks[signer];
         if (!c.active || block.timestamp >= c.expiry) revert Unavailable();
         if (amount == 0 || amount > c.remaining) revert InvalidValue();
         c.remaining -= uint128(amount);
         reserved -= amount;
     }
 
-    // The cheque key signs the EIP-191 form of userOpHash. The first call argument names the cheque and the
-    // nonce key must equal it, giving each cheque its own sequence. ERC-7562 bans TIMESTAMP here, so expiry is
+    // The spook key signs the EIP-191 form of userOpHash. The first call argument names the spook and the
+    // nonce key must equal it, giving each spook its own sequence. ERC-7562 bans TIMESTAMP here, so expiry is
     // returned as validUntil, and only this account's storage is touched.
     function validateUserOp(PackedUserOperation calldata op, bytes32 opHash, uint256)
         external
@@ -245,7 +245,7 @@ contract ChequeBook is IAccount {
         address signer = address(uint160(uint256(bytes32(op.callData[4:36]))));
         if (op.nonce >> 64 != uint256(uint160(signer))) return 1;
 
-        Cheque storage c = cheques[signer];
+        Spook storage c = spooks[signer];
         uint256 cost =
             (uint256(uint128(bytes16(op.accountGasLimits)))
                     + uint128(uint256(op.accountGasLimits))
@@ -265,7 +265,7 @@ contract ChequeBook is IAccount {
     }
 }
 
-contract ChequeBookFactory {
+contract SpookBookFactory {
     using SafeERC20 for IERC20;
 
     address public immutable entryPoint;
@@ -281,8 +281,8 @@ contract ChequeBookFactory {
         messenger = tokenMessenger;
     }
 
-    /// A first-time issuer's whole setup in one transaction: deploy the book, fund it, deposit fees, write a cheque.
-    function createAndWrite(
+    /// A first-time issuer's whole setup in one transaction: deploy the book, fund it, deposit fees, create a spook.
+    function createAndSpook(
         address signer,
         uint128 amount,
         uint64 expiry,
@@ -291,12 +291,12 @@ contract ChequeBookFactory {
         bytes calldata sealedKey
     ) external payable returns (address book) {
         if (bookOf[msg.sender] != address(0)) revert Exists();
-        book = address(new ChequeBook(msg.sender, entryPoint, usdc, messenger));
+        book = address(new SpookBook(msg.sender, entryPoint, usdc, messenger));
         bookOf[msg.sender] = book;
         emit BookCreated(msg.sender, book);
         usePermit(IERC20(usdc), msg.sender, address(this), amount, permit);
         IERC20(usdc).safeTransferFrom(msg.sender, book, amount);
         if (msg.value > 0) IEntryPoint(entryPoint).depositTo{value: msg.value}(book);
-        ChequeBook(payable(book)).write(signer, amount, expiry, gasBudget, sealedKey);
+        SpookBook(payable(book)).spook(signer, amount, expiry, gasBudget, sealedKey);
     }
 }

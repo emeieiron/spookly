@@ -118,7 +118,7 @@ test("pre-submission outages preserve the self-funded path", async () => {
 
 test("pending records require the current retry history field without migration defaults", () => {
   storage.set(
-    `pippo:sponsor:10143:${owner.address.toLowerCase()}`,
+    `spookly:sponsor:10143:${owner.address.toLowerCase()}`,
     JSON.stringify({ id: requestId })
   )
   assert.throws(
@@ -138,7 +138,7 @@ test("a reserve blocker stops before signing and cannot fall back to a native tr
   assert.equal(readPendingSponsor(owner.address), null)
 })
 
-test("a guarded retry keeps the exact cheque transaction and retains the earlier provider request", async () => {
+test("a guarded retry keeps the exact spook transaction and retains the earlier provider request", async () => {
   const original = {
     from: owner.address,
     to: owner.address,
@@ -193,7 +193,7 @@ test("a guarded retry keeps the exact cheque transaction and retains the earlier
   assert.deepEqual(readPendingSponsor(owner.address)?.transaction, original)
 })
 
-test("a funding blocker on an accepted cheque preserves its pending request", async () => {
+test("a funding blocker on an accepted spook preserves its pending request", async () => {
   const original = {
     from: owner.address,
     to: owner.address,

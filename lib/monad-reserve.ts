@@ -16,7 +16,7 @@ export function reserveShortfall(balance: bigint, value: bigint) {
 export function reserveMessage(shortfall: bigint) {
   const precision = 100_000_000_000_000n
   const roundedUp = ((shortfall + precision - 1n) / precision) * precision
-  return `Add at least ${formatMon(roundedUp)} to cover the cheque fee allowance. Monad requires this wallet to retain 10 MON.`
+  return `Add at least ${formatMon(roundedUp)} to cover the spook fee allowance. Monad requires this wallet to retain 10 MON.`
 }
 
 export class SponsorFundingError extends Error {}

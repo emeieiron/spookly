@@ -39,7 +39,7 @@ export type SponsorRequest = {
 // This proof uses the wallet's private key through Privy's normal signing path,
 // which enforces enrolled wallet MFA. An access token or user-key signature alone is insufficient.
 export function sponsorProofMessage(request: SponsorRequest) {
-  return `Pippo sponsorship\nNetwork: Monad testnet (10143)\nRequest: ${request.headers["privy-idempotency-key"]}\nExpires: ${request.headers["privy-request-expiry"]}\nDigest: ${keccak256(stringToHex(JSON.stringify(request)))}`
+  return `Spookly sponsorship\nNetwork: Monad testnet (10143)\nRequest: ${request.headers["privy-idempotency-key"]}\nExpires: ${request.headers["privy-request-expiry"]}\nDigest: ${keccak256(stringToHex(JSON.stringify(request)))}`
 }
 
 export function sponsorRequest(
@@ -66,7 +66,7 @@ export function sponsorRequest(
       params: {
         calls: [
           // Delegated wallets authorize the exact USDC pull through an
-          // approval in the same atomic batch as the cheque write.
+          // approval in the same atomic batch as Spook creation.
           ...(approval > 0n
             ? [
                 {

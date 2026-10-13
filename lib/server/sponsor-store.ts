@@ -56,7 +56,7 @@ export async function redisCommand<T>(
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex")
 const prefix = () =>
-  `pippo:sponsor:10143:${process.env.NEXT_PUBLIC_PRIVY_APP_ID}`
+  `spookly:sponsor:10143:${process.env.NEXT_PUBLIC_PRIVY_APP_ID}`
 export const sponsorRecordKey = (id: string) => `${prefix()}:request:${id}`
 
 export function sponsorReservationKeys(

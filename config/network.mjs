@@ -5,10 +5,10 @@ import testnet from "./deployments/testnet.json" with { type: "json" }
 // One build-time environment, shared by the app and developer tooling.
 export function selectNetwork(value = "mainnet") {
   if (value !== "mainnet" && value !== "testnet")
-    throw new Error("NEXT_PUBLIC_PIPPO_NETWORK must be mainnet or testnet")
+    throw new Error("NEXT_PUBLIC_SPOOKLY_NETWORK must be mainnet or testnet")
   return profiles[value]
 }
-export const appNetwork = selectNetwork(process.env.NEXT_PUBLIC_PIPPO_NETWORK)
+export const appNetwork = selectNetwork(process.env.NEXT_PUBLIC_SPOOKLY_NETWORK)
 export const deployment = appNetwork.name === "mainnet" ? mainnet : testnet
 if (deployment.chainId !== appNetwork.chainId)
   throw new Error(

@@ -1,4 +1,4 @@
-/* Hero: the cheque screen rises, its QR prints, the link crosses over, then the spend screen starts scanning. */
+/* Hero: the spook screen rises, its QR prints, the link crosses over, then the spend screen starts scanning. */
 .reveal > * {
   animation: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -15,11 +15,11 @@
   animation-delay: 0.32s;
 }
 
-.mock-write {
+.mock-spook {
   animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both;
 }
-.mock-write .qr-print,
-.mock-write .qr-print::after {
+.mock-spook .qr-print,
+.mock-spook .qr-print::after {
   animation-delay: 0.6s;
 }
 .mock-link {
@@ -73,7 +73,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .reveal > *,
-  .mock-write,
+  .mock-spook,
   .mock-link,
   .mock-spend,
   .scan-line {

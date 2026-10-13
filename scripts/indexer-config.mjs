@@ -15,8 +15,8 @@ if (appNetwork.name === "testnet")
   config = template
     .replace(/start_block: \d+/, `start_block: ${deployment.blockNumber}`)
     .replace(
-      /address: "0xe51e48f765440c9c4187a11c78b17a810232d4f8"/,
-      `address: "${deployment.factory}"`
+      /(name: SpookBookFactory\n\s+address: ")[^"]+(")/,
+      `$1${deployment.factory}$2`
     )
 else {
   // Start destination indexing at the current blocks when first configuring the deployment.
@@ -65,14 +65,14 @@ else {
   }
   const contracts = template.slice(
     template.indexOf("contracts:"),
-    template.indexOf("# Start blocks")
+    template.indexOf("\nchains:")
   )
   const chains = appNetwork.payouts.map((n) =>
     n.chainId === appNetwork.chainId
-      ? `  - id: ${n.chainId}\n    start_block: ${deployment.blockNumber}\n    contracts:\n      - name: ChequeBookFactory\n        address: "${deployment.factory}"\n      - name: ChequeBook`
+      ? `  - id: ${n.chainId}\n    start_block: ${deployment.blockNumber}\n    contracts:\n      - name: SpookBookFactory\n        address: "${deployment.factory}"\n      - name: SpookBook`
       : `  - id: ${n.chainId}\n    start_block: ${starts[n.chainId]}\n    contracts:\n      - name: MessageTransmitter\n        address: "${appNetwork.messageTransmitter}"`
   )
-  config = `name: pippo-mainnet\ndescription: Pippo mainnet cheques and CCTP deliveries\nrollback_on_reorg: true\naddress_format: lowercase\n\n${contracts}\nchains:\n${chains.join("\n")}\n`
+  config = `name: spookly-mainnet\ndescription: Spookly mainnet spooks and CCTP deliveries\nrollback_on_reorg: true\naddress_format: lowercase\n\n${contracts}\nchains:\n${chains.join("\n")}\n`
 }
 const filename = `config.generated.${appNetwork.name}.yaml`
 writeFileSync(`indexer/${filename}`, config)

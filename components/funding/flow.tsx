@@ -157,7 +157,7 @@ export function FundingFlow({
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Receive USDC on <ChainName chain="monad" />. Any missing MON for
-            cheque fees is included in the quote; unused MON stays in your
+            Spook fees is included in the quote; unused MON stays in your
             wallet.
           </p>
           <Button
@@ -251,19 +251,19 @@ export function FundingFlow({
             ))
           )}
           {ready &&
-            (purpose === "receive" && session.purpose === "write" ? (
+            (purpose === "receive" && session.purpose === "spook" ? (
               <Link
                 href="/app"
                 className="py-3 text-center text-sm font-semibold underline"
               >
-                Finish creating cheque
+                Finish creating Spook
               </Link>
             ) : (
               <Button size="lg" disabled={disabled || busy} onClick={finish}>
                 {busy ? (
                   <Loader2 className="animate-spin" />
-                ) : session.purpose === "write" ? (
-                  "Finish creating cheque"
+                ) : session.purpose === "spook" ? (
+                  "Finish creating Spook"
                 ) : (
                   "Done"
                 )}

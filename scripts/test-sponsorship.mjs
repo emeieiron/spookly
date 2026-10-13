@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 
-const container = `pippo-sponsor-test-${randomUUID()}`
+const container = `spookly-sponsor-test-${randomUUID()}`
 const started = spawnSync(
   "docker",
   ["run", "--rm", "-d", "--name", container, "redis:7-alpine"],
@@ -18,7 +18,7 @@ try {
       env: {
         ...process.env,
         SPONSOR_REDIS_TEST_CONTAINER: container,
-        NEXT_PUBLIC_PIPPO_NETWORK: "testnet",
+        NEXT_PUBLIC_SPOOKLY_NETWORK: "testnet",
       },
     }
   )

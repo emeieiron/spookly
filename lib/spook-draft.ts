@@ -1,7 +1,7 @@
 import { type Address, type Hex, type Hash } from "viem"
 import { monad } from "./chain"
 
-export type WriteDraft = {
+export type SpookDraft = {
   key: Hex
   signer: Address
   amount: string
@@ -13,10 +13,10 @@ export type WriteDraft = {
   hash?: Hash
 }
 const storageKey = (owner: Address) =>
-  `pippo:write:${monad.id}:${owner.toLowerCase()}`
-export const readWriteDraft = (owner: Address): WriteDraft | null =>
+  `spookly:spook:${monad.id}:${owner.toLowerCase()}`
+export const readSpookDraft = (owner: Address): SpookDraft | null =>
   JSON.parse(localStorage.getItem(storageKey(owner)) ?? "null")
-export const saveWriteDraft = (owner: Address, draft: WriteDraft) =>
+export const saveSpookDraft = (owner: Address, draft: SpookDraft) =>
   localStorage.setItem(storageKey(owner), JSON.stringify(draft))
-export const clearWriteDraft = (owner: Address) =>
+export const clearSpookDraft = (owner: Address) =>
   localStorage.removeItem(storageKey(owner))

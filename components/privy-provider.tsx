@@ -53,7 +53,12 @@ export function Privy({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: "dark",
           accentColor: "#1f5c45",
-          landingHeader: "Sign in to write cheques",
+          logo: (
+            <span className="text-lg font-semibold tracking-widest">
+              Spookly
+            </span>
+          ),
+          landingHeader: "Sign in to create Spooks",
           walletChainType: "ethereum-only",
         },
       }}

@@ -27,7 +27,7 @@ import {
   readLinks,
   type Book,
   type Links,
-} from "@/lib/cheque-book"
+} from "@/lib/spook-book"
 import {
   createVault,
   forgetVault,
@@ -37,7 +37,7 @@ import {
   type LinkVault,
 } from "@/lib/link-vault"
 import { FACTORY, USDC, erc20Abi, monad } from "@/lib/chain"
-import { errorMessage, publicClient } from "@/lib/cheque-payment"
+import { errorMessage, publicClient } from "@/lib/spook-payment"
 import { shortAddress } from "@/lib/money"
 import type { SignerClient, SponsorSender } from "@/lib/wallet-send"
 import { creationGasReserve } from "@/lib/funding/requirements"
@@ -53,7 +53,7 @@ export type Wallet = {
   gasReserve: bigint
   delegated: boolean
   book: Book | null
-  checkedAt: number
+  refreshedAt: number
 }
 
 type Issuer = {
@@ -71,12 +71,12 @@ type Issuer = {
   goBack: () => void
   copied: Address | null
   setCopied: (signer: Address | null) => void
-  // Passkey-derived key that seals cheque links on-chain; null until set up or unlocked on this device.
+  // Passkey-derived key that seals spook links on-chain; null until set up or unlocked on this device.
   vault: LinkVault | null
   // Null until this device's passkey support is known.
   passkeys: boolean | null
   links: Links | null
-  // False while links are being restored for the current cheques and vault.
+  // False while links are being restored for the current spooks and vault.
   linksReady: boolean
   // Set after an unlock fails, so a lost passkey can be replaced.
   unlockFailed: boolean
@@ -120,7 +120,7 @@ export async function fetchWallet(
     book,
     gasReserve: creationGasReserve(fees.maxFeePerGas, !!book),
     delegated: isDelegated(code),
-    checkedAt: Date.now(),
+    refreshedAt: Date.now(),
   }
 }
 
@@ -257,11 +257,11 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     passkeysSupported().then(setPasskeys)
   }, [])
 
-  // Restores every live link the vault can open whenever the cheques, their seals or the vault change.
+  // Restores every live link the vault can open whenever the spooks, their seals or the vault change.
   const book = wallet?.book
   const linksSig =
     book && vaultFor === wallet.account
-      ? `${vault?.id}|${book.cheques.map((c) => `${c.signer}${c.sealedKey}${isLive(c, wallet.checkedAt)}`).join()}`
+      ? `${vault?.id}|${book.spooks.map((c) => `${c.signer}${c.sealedKey}${isLive(c, wallet.refreshedAt)}`).join()}`
       : ""
   useEffect(() => {
     if (!linksSig || !wallet?.book) return
@@ -269,9 +269,9 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
     let live = true
     readLinks(
       wallet.account,
-      wallet.book.cheques,
+      wallet.book.spooks,
       vault,
-      wallet.checkedAt
+      wallet.refreshedAt
     ).then((l) => live && setLinks({ ...l, owner, sig: linksSig }))
     return () => {
       live = false
@@ -319,7 +319,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     if (wallet) {
       await forgetVault(wallet.account)
-      forgetSealedKeys(wallet.account, wallet.book?.cheques ?? [])
+      forgetSealedKeys(wallet.account, wallet.book?.spooks ?? [])
     }
     setVault(null)
     setVaultFor(null)
@@ -374,7 +374,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
                 Spendable links
               </h1>
               <p className="text-sm text-muted-foreground">
-                Write USDC cheques anyone can spend straight from a link.
+                Create USDC Spooks anyone can spend straight from a link.
               </p>
             </div>
             <Button size="lg" onClick={() => login()}>
@@ -413,7 +413,7 @@ export function AppFrame({
           href={onSignOut ? "/app" : "/"}
           className="flex h-9 items-center text-sm font-semibold tracking-widest uppercase"
         >
-          Pippo
+          Spookly
         </Link>
         {confirming ? (
           <div className="flex items-center gap-1 text-sm">

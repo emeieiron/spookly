@@ -5,8 +5,8 @@ import type { Address } from "viem"
 import { ArrowUpRight, Check, Loader2 } from "lucide-react"
 import {
   activityEnabled,
-  chequePayments,
-  type ChequePayment,
+  spookPayments,
+  type SpookPayment,
 } from "@/lib/activity"
 import { EXPLORER, monad } from "@/lib/chain"
 import { formatUsdc, shortAddress } from "@/lib/money"
@@ -25,19 +25,19 @@ function timeAgo(seconds: number) {
   return "just now"
 }
 
-// Payments made from a cheque's link, from the Envio indexer. Refetched whenever the app refreshes the book.
-export function ChequePayments({
+// Payments made from a spook's link, from the Envio indexer. Refetched whenever the app refreshes the book.
+export function SpookPayments({
   signer,
   refreshKey,
 }: {
   signer: Address
   refreshKey: number
 }) {
-  const [payments, setPayments] = useState<ChequePayment[] | null>(null)
+  const [payments, setPayments] = useState<SpookPayment[] | null>(null)
   useEffect(() => {
     if (!activityEnabled) return
     let live = true
-    chequePayments(signer).then((p) => live && p && setPayments(p))
+    spookPayments(signer).then((p) => live && p && setPayments(p))
     return () => {
       live = false
     }
@@ -59,7 +59,7 @@ export function ChequePayments({
   )
 }
 
-function PaymentRow({ payment: p }: { payment: ChequePayment }) {
+function PaymentRow({ payment: p }: { payment: SpookPayment }) {
   const network = networkByChainId(p.chainId)
   const delivered = p.status === "delivered"
   const crossChain = p.chainId !== monad.id

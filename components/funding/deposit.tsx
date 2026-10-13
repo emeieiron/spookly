@@ -135,7 +135,7 @@ export function Deposit({
       )}
       {!terminal(leg.status) && (
         <p className="text-xs text-muted-foreground">
-          You can leave this page. Return to Receive or Write to resume
+          You can leave this page. Return to Receive or Spook to resume
           tracking.
         </p>
       )}

@@ -10,7 +10,7 @@ import {
   toHex,
   zeroHash,
 } from "viem"
-import { chequeBookAbi } from "./abi"
+import { spookBookAbi } from "./abi"
 import { USDC } from "./chain"
 import { PRIVY_TESTNET_DELEGATE } from "./server/sponsor-execution"
 import { privateKeyToAccount } from "viem/accounts"
@@ -40,8 +40,8 @@ describe(
     let uncertain = false
     let providerFormat: "current" | "alternate" = "current"
     const redis = async (command: (string | number)[]) => {
-      if (!container?.startsWith("pippo-sponsor-test-"))
-        throw new Error("Use a disposable Pippo test container.")
+      if (!container?.startsWith("spookly-sponsor-test-"))
+        throw new Error("Use a disposable Spookly test container.")
       const { stdout } = await exec("docker", [
         "exec",
         container,
@@ -319,15 +319,15 @@ describe(
       )
       assert.equal(providerCalls, 0)
     })
-    test("cheque retry reserves a new bounded attempt only for the identical absent cheque", async () => {
+    test("spook retry reserves a new bounded attempt only for the identical absent spook", async () => {
       const book = getAddress("0x1111111111111111111111111111111111111111")
       const tx = {
         from: owner.address,
         to: book,
         value: toHex(parseEther("0.2")),
         data: encodeFunctionData({
-          abi: chequeBookAbi,
-          functionName: "fundAndWrite",
+          abi: spookBookAbi,
+          functionName: "fundAndSpook",
           args: [
             other.address,
             10000n,

@@ -7,7 +7,7 @@ import {
   isAddress,
   type Address,
 } from "viem"
-import { chequeBookAbi, factoryAbi } from "@/lib/abi"
+import { spookBookAbi, factoryAbi } from "@/lib/abi"
 import { ENTRY_POINT, FACTORY, monad } from "@/lib/chain"
 
 const METHODS = new Set([
@@ -25,14 +25,14 @@ const client = createPublicClient({
 })
 const knownBooks = new Set<string>()
 
-// Only relay operations for cheque books created by our factory, so the Alchemy key can't be used for anything else.
-async function isChequeBook(sender: Address) {
+// Only relay operations for spook books created by our factory, so the Alchemy key can't be used for anything else.
+async function isSpookBook(sender: Address) {
   if (knownBooks.has(sender)) return true
   if (!FACTORY) return false
   try {
     const owner = await client.readContract({
       address: sender,
-      abi: chequeBookAbi,
+      abi: spookBookAbi,
       functionName: "owner",
     })
     const book = await client.readContract({
@@ -52,10 +52,10 @@ async function isChequeBook(sender: Address) {
 const userMessage = (raw: string) => {
   const code = raw.match(/AA\d{2}/)?.[0]
   if (code === "AA21")
-    return "The cheque's fee balance is empty. Ask the issuer to top it up."
-  if (code === "AA22") return "This cheque has expired."
+    return "The spook's fee balance is empty. Ask the issuer to top it up."
+  if (code === "AA22") return "This spook has expired."
   if (code === "AA24")
-    return "This cheque can't make that payment. It may be spent or cancelled."
+    return "This spook can't make that payment. It may be spent or cancelled."
   return "The payment couldn't be processed. Try again."
 }
 
@@ -102,12 +102,12 @@ export async function POST(request: Request) {
       )
         throw new Error()
       const { functionName } = decodeFunctionData({
-        abi: chequeBookAbi,
+        abi: spookBookAbi,
         data: op.callData,
       })
       if (functionName !== "pay" && functionName !== "payCrossChain")
         throw new Error()
-      if (!(await isChequeBook(getAddress(op.sender)))) throw new Error()
+      if (!(await isSpookBook(getAddress(op.sender)))) throw new Error()
     }
   } catch {
     return Response.json({ error: "Unsupported request" }, { status: 400 })

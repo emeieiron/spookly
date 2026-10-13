@@ -6,9 +6,9 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
-  title: "Pippo",
+  title: "Spookly",
   description:
-    "Spendable links: USDC cheques anyone can spend straight from a link, on Monad or nine other networks.",
+    "Spendable links: USDC Spooks anyone can spend straight from a link, on Monad or nine other networks.",
 }
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })

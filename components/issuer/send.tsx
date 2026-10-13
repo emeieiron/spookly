@@ -25,7 +25,7 @@ import {
   tokenMessengerAbi,
 } from "@/lib/cctp"
 import { EXPLORER, TOKEN_MESSENGER, USDC, erc20Abi } from "@/lib/chain"
-import { errorMessage, publicClient } from "@/lib/cheque-payment"
+import { errorMessage, publicClient } from "@/lib/spook-payment"
 import { formatUsdc, parseUsdc, shortAddress } from "@/lib/money"
 import {
   NETWORKS,
@@ -34,7 +34,7 @@ import {
   type Network,
 } from "@/lib/networks"
 import {
-  sendChecked,
+  sendValidated,
   type SignerClient,
   type SponsorSender,
 } from "@/lib/wallet-send"
@@ -177,7 +177,7 @@ function SendForm({
       const to = getAddress(recipient)
       let hash: Hash
       if (local) {
-        hash = await sendChecked(
+        hash = await sendValidated(
           client,
           USDC,
           encodeFunctionData({
@@ -196,7 +196,7 @@ function SendForm({
           args: [client.account.address, TOKEN_MESSENGER],
         })
         if (allowance < total)
-          await sendChecked(
+          await sendValidated(
             client,
             USDC,
             encodeFunctionData({
@@ -207,7 +207,7 @@ function SendForm({
             0n,
             sponsor
           )
-        hash = await sendChecked(
+        hash = await sendValidated(
           client,
           TOKEN_MESSENGER,
           encodeFunctionData({

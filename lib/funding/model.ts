@@ -59,7 +59,7 @@ export type FundingSession = {
   version: 1
   account: string
   chainId: number
-  purpose: "receive" | "write"
+  purpose: "receive" | "spook"
   token: FundingToken
   refundTo: string
   legs: FundingLeg[]
@@ -198,7 +198,7 @@ export function parseStatus(value: unknown): SwapStatus {
   return status as SwapStatus
 }
 export const sessionKey = (chainId: number, account: string) =>
-  `pippo:funding:${chainId}:${account.toLowerCase()}`
+  `spookly:funding:${chainId}:${account.toLowerCase()}`
 export function readSession(
   storage: Pick<Storage, "getItem">,
   chainId: number,
@@ -214,7 +214,7 @@ export function readSession(
       s.chainId !== chainId ||
       s.account.toLowerCase() !== account.toLowerCase() ||
       !isAddress(s.account) ||
-      !["receive", "write"].includes(s.purpose) ||
+      !["receive", "spook"].includes(s.purpose) ||
       typeof s.confirmed !== "boolean" ||
       !Number.isFinite(s.createdAt) ||
       !Array.isArray(s.legs) ||
@@ -239,7 +239,7 @@ export function readSession(
       units(depositAmount(leg.quote))
     }
     if (
-      s.purpose === "write" &&
+      s.purpose === "spook" &&
       (!s.draft ||
         ![1, 7, 30].includes(s.draft.days) ||
         !/^\d+(\.\d{0,6})?$/.test(s.draft.amount))

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ChequeBook, ChequeBookFactory, Permit} from "../src/ChequeBook.sol";
+import {SpookBook, SpookBookFactory, Permit} from "../src/SpookBook.sol";
 import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -28,7 +28,7 @@ interface IPermitToken {
 }
 
 // Run through scripts/forge.mjs on the configured Monad fork so the real EntryPoint 0.7, USDC and CCTP TokenMessengerV2 are exercised.
-contract ChequeBookForkTest {
+contract SpookBookForkTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     IEntryPoint constant EP = IEntryPoint(0x0000000071727De22E5E9d8BAf0edAc6f37da032);
     IERC20 USDC;
@@ -36,27 +36,27 @@ contract ChequeBookForkTest {
 
     uint256 issuerKey = 0x1551E5;
     address issuer;
-    ChequeBookFactory factory;
+    SpookBookFactory factory;
     address payee = address(0x3E4C);
     address bundler = address(0xB0B);
-    uint256 chequeKey = 0xC4E9E;
+    uint256 spookKey = 0xC4E9E;
     address signer;
-    ChequeBook book;
+    SpookBook book;
     bytes constant SEALED = hex"01aabbccddeeff00112233";
 
     function setUp() public {
-        USDC = IERC20(vm.envAddress("PIPPO_USDC"));
-        MESSENGER = vm.envAddress("PIPPO_TOKEN_MESSENGER");
+        USDC = IERC20(vm.envAddress("SPOOKLY_USDC"));
+        MESSENGER = vm.envAddress("SPOOKLY_TOKEN_MESSENGER");
         issuer = vm.addr(issuerKey);
-        signer = vm.addr(chequeKey);
-        factory = new ChequeBookFactory(address(EP), address(USDC), MESSENGER);
+        signer = vm.addr(spookKey);
+        factory = new SpookBookFactory(address(EP), address(USDC), MESSENGER);
         mintUsdc(issuer, 20e6);
         vm.deal(issuer, 10 ether);
-        // One transaction creates the book, pulls 10 USDC by permit, deposits fees and writes the cheque.
+        // One transaction creates the book, pulls 10 USDC by permit, deposits fees and creates the spook.
         Permit memory p = permit(address(factory), 10e6);
         vm.prank(issuer);
-        book = ChequeBook(
-            payable(factory.createAndWrite{value: 1 ether}(
+        book = SpookBook(
+            payable(factory.createAndSpook{value: 1 ether}(
                     signer, 10e6, uint64(block.timestamp + 1 days), 0.5 ether, p, SEALED
                 ))
         );
@@ -64,134 +64,134 @@ contract ChequeBookForkTest {
         require(book.reserved() == 10e6 && book.available() == 0 && USDC.balanceOf(issuer) == 10e6, "funded");
     }
 
-    function testFundAndWritePullsOnlyTheShortfall() public {
+    function testFundAndSpookPullsOnlyTheShortfall() public {
         vm.prank(issuer);
         USDC.transfer(address(book), 4e6);
         Permit memory p = permit(address(book), 2e6);
         vm.prank(issuer);
-        book.fundAndWrite{value: 0.2 ether}(vm.addr(9), 6e6, uint64(block.timestamp + 1 days), 0.2 ether, 2e6, p, "");
+        book.fundAndSpook{value: 0.2 ether}(vm.addr(9), 6e6, uint64(block.timestamp + 1 days), 0.2 ether, 2e6, p, "");
         require(USDC.balanceOf(issuer) == 4e6 && book.reserved() == 16e6 && book.available() == 0, "shortfall only");
         require(book.gasBalance() == 1.2 ether && book.committedGas() == 0.7 ether, "fees topped up");
     }
 
-    function testSealedKeyIsStoredWithTheCheque() public {
+    function testSealedKeyIsStoredWithTheSpook() public {
         require(keccak256(book.sealedKeys(signer)) == keccak256(SEALED), "stored");
-        ChequeBook.ChequeView[] memory list = book.list(0, 1);
+        SpookBook.SpookView[] memory list = book.list(0, 1);
         require(keccak256(list[0].sealedKey) == keccak256(SEALED), "listed");
         Permit memory p = permit(address(book), 1e6);
         vm.prank(issuer);
-        vm.expectRevert(ChequeBook.InvalidValue.selector);
-        book.fundAndWrite(vm.addr(9), 1e6, uint64(block.timestamp + 1 days), 0.1 ether, 1e6, p, new bytes(129));
+        vm.expectRevert(SpookBook.InvalidValue.selector);
+        book.fundAndSpook(vm.addr(9), 1e6, uint64(block.timestamp + 1 days), 0.1 ether, 1e6, p, new bytes(129));
     }
 
-    function testCreateAndWriteOncePerIssuer() public {
+    function testCreateAndSpookOncePerIssuer() public {
         Permit memory p = permit(address(factory), 1e6);
         vm.prank(issuer);
-        vm.expectRevert(ChequeBookFactory.Exists.selector);
-        factory.createAndWrite(vm.addr(9), 1e6, uint64(block.timestamp + 1 days), 0.1 ether, p, "");
+        vm.expectRevert(SpookBookFactory.Exists.selector);
+        factory.createAndSpook(vm.addr(9), 1e6, uint64(block.timestamp + 1 days), 0.1 ether, p, "");
     }
 
     function testCancelRefundsUsdcAndSpareFees() public {
-        submit(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 3e6)));
+        submit(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 3e6)));
         uint256 monBefore = issuer.balance;
         uint256 deposit = book.gasBalance();
         vm.prank(issuer);
         book.cancel(signer);
         require(USDC.balanceOf(issuer) == 17e6 && book.reserved() == 0, "usdc refunded");
-        (uint128 refunded,, bool active,, uint128 amount) = book.cheques(signer);
+        (uint128 refunded,, bool active,, uint128 amount) = book.spooks(signer);
         require(amount == 10e6 && refunded == 7e6 && !active, "history kept");
         require(
             issuer.balance == monBefore + deposit && book.gasBalance() == 0 && book.committedGas() == 0, "fees refunded"
         );
     }
 
-    function testCancelKeepsFeesOtherChequesNeed() public {
+    function testCancelKeepsFeesOtherSpooksNeed() public {
         address second = vm.addr(9);
         Permit memory p = permit(address(book), 2e6);
         vm.prank(issuer);
-        book.fundAndWrite(second, 2e6, uint64(block.timestamp + 1 days), 0.2 ether, 2e6, p, "");
+        book.fundAndSpook(second, 2e6, uint64(block.timestamp + 1 days), 0.2 ether, 2e6, p, "");
         vm.prank(issuer);
         book.cancel(signer);
-        require(book.committedGas() == 0.2 ether && book.gasBalance() == 0.2 ether, "second cheque keeps its fees");
-        require(book.reserved() == 2e6 && USDC.balanceOf(issuer) == 18e6, "second cheque keeps its USDC");
+        require(book.committedGas() == 0.2 ether && book.gasBalance() == 0.2 ether, "second spook keeps its fees");
+        require(book.reserved() == 2e6 && USDC.balanceOf(issuer) == 18e6, "second spook keeps its USDC");
     }
 
     function testPaysPayeeOnMonad() public {
-        submit(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 3e6)));
+        submit(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 3e6)));
         require(USDC.balanceOf(payee) == 3e6, "payee paid");
-        (uint128 remaining,,, uint128 gasLeft,) = book.cheques(signer);
-        require(remaining == 7e6 && gasLeft < 0.5 ether, "cheque debited");
+        (uint128 remaining,,, uint128 gasLeft,) = book.spooks(signer);
+        require(remaining == 7e6 && gasLeft < 0.5 ether, "spook debited");
         require(book.reserved() == 7e6 && book.available() == 0, "accounting");
-        require(book.committedGas() == gasLeft, "committed fees track the cheque");
+        require(book.committedGas() == gasLeft, "committed fees track the spook");
     }
 
     function testBurnsForCrossChainPayee() public {
         uint256 before = USDC.balanceOf(address(book));
         submit(
-            chequeKey,
-            abi.encodeCall(ChequeBook.payCrossChain, (signer, 6, bytes32(uint256(uint160(payee))), 2.1e6, 0.1e6))
+            spookKey,
+            abi.encodeCall(SpookBook.payCrossChain, (signer, 6, bytes32(uint256(uint160(payee))), 2.1e6, 0.1e6))
         );
         require(USDC.balanceOf(address(book)) == before - 2.1e6, "burned");
-        (uint128 remaining,,,,) = book.cheques(signer);
-        require(remaining == 7.9e6, "cheque debited");
+        (uint128 remaining,,,,) = book.spooks(signer);
+        require(remaining == 7.9e6, "spook debited");
     }
 
-    function testSequentialPaymentsUseChequeNonce() public {
-        submit(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 1e6)));
-        submit(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 1e6)));
+    function testSequentialPaymentsUseSpookNonce() public {
+        submit(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 1e6)));
+        submit(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 1e6)));
         require(USDC.balanceOf(payee) == 2e6, "two payments");
     }
 
     function testRejectsWrongKey() public {
-        PackedUserOperation memory op = build(0xBAD, abi.encodeCall(ChequeBook.pay, (signer, payee, 1e6)));
+        PackedUserOperation memory op = build(0xBAD, abi.encodeCall(SpookBook.pay, (signer, payee, 1e6)));
         expectFailedOp(op, "AA24 signature error");
     }
 
     function testRejectsOverspendBeforeChargingFees() public {
-        PackedUserOperation memory op = build(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 11e6)));
+        PackedUserOperation memory op = build(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 11e6)));
         expectFailedOp(op, "AA24 signature error");
-        (,,, uint128 gasLeft,) = book.cheques(signer);
+        (,,, uint128 gasLeft,) = book.spooks(signer);
         require(gasLeft == 0.5 ether, "fee budget untouched");
     }
 
-    function testRejectsOtherChequesNonce() public {
-        PackedUserOperation memory op = build(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 1e6)));
+    function testRejectsOtherSpooksNonce() public {
+        PackedUserOperation memory op = build(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 1e6)));
         op.nonce = EP.getNonce(address(book), 0);
-        op.signature = signOp(chequeKey, op);
+        op.signature = signOp(spookKey, op);
         expectFailedOp(op, "AA24 signature error");
     }
 
-    function testCancelledChequeCannotPayAndReleasesFunds() public {
+    function testCancelledSpookCannotPayAndReleasesFunds() public {
         vm.prank(issuer);
         book.cancel(signer);
         require(book.reserved() == 0 && USDC.balanceOf(issuer) == 20e6, "refunded");
-        // The swept fee deposit already stops it at prefund, ahead of the cheque's own rejection.
+        // The swept fee deposit already stops it at prefund, ahead of the spook's own rejection.
         expectFailedOp(
-            build(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 1e6))), "AA21 didn't pay prefund"
+            build(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 1e6))), "AA21 didn't pay prefund"
         );
     }
 
-    function testExpiredChequeCannotPay() public {
+    function testExpiredSpookCannotPay() public {
         vm.warp(block.timestamp + 2 days);
         expectFailedOp(
-            build(chequeKey, abi.encodeCall(ChequeBook.pay, (signer, payee, 1e6))), "AA22 expired or not due"
+            build(spookKey, abi.encodeCall(SpookBook.pay, (signer, payee, 1e6))), "AA22 expired or not due"
         );
     }
 
     function testIssuerGuards() public {
         vm.prank(issuer);
-        vm.expectRevert(ChequeBook.InvalidValue.selector);
-        book.write(signer, 1e6, uint64(block.timestamp + 1 days), 0.1 ether, "");
+        vm.expectRevert(SpookBook.InvalidValue.selector);
+        book.spook(signer, 1e6, uint64(block.timestamp + 1 days), 0.1 ether, "");
         vm.prank(issuer);
-        vm.expectRevert(ChequeBook.Unavailable.selector);
-        book.write(vm.addr(7), 1, uint64(block.timestamp + 1 days), 0.1 ether, "");
+        vm.expectRevert(SpookBook.Unavailable.selector);
+        book.spook(vm.addr(7), 1, uint64(block.timestamp + 1 days), 0.1 ether, "");
         vm.prank(issuer);
-        vm.expectRevert(ChequeBook.Unavailable.selector);
+        vm.expectRevert(SpookBook.Unavailable.selector);
         book.cancel(vm.addr(7));
         vm.prank(payee);
-        vm.expectRevert(ChequeBook.Unauthorized.selector);
-        book.write(vm.addr(8), 1e6, uint64(block.timestamp + 1 days), 0.1 ether, "");
-        vm.expectRevert(ChequeBook.Unauthorized.selector);
+        vm.expectRevert(SpookBook.Unauthorized.selector);
+        book.spook(vm.addr(8), 1e6, uint64(block.timestamp + 1 days), 0.1 ether, "");
+        vm.expectRevert(SpookBook.Unauthorized.selector);
         book.pay(signer, payee, 1e6);
     }
 

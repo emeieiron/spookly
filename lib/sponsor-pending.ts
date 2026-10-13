@@ -11,7 +11,8 @@ export type PendingSponsor = {
   hash?: Hash
   previousIds: string[]
 }
-const key = (address: string) => `pippo:sponsor:10143:${address.toLowerCase()}`
+const key = (address: string) =>
+  `spookly:sponsor:10143:${address.toLowerCase()}`
 export function readPendingSponsor(address: string): PendingSponsor | null {
   if (IS_MAINNET) return null
   const pending = JSON.parse(

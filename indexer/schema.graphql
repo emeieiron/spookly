@@ -1,30 +1,30 @@
 type Book {
-  id: ID! # cheque book address
+  id: ID! # spook book address
   owner: String!
   createdAt: BigInt!
   txHash: String!
-  cheques: [Cheque!]! @derivedFrom(field: "book")
+  spooks: [Spook!]! @derivedFrom(field: "book")
 }
 
-type Cheque {
-  id: ID! # the cheque key's address
+type Spook {
+  id: ID! # the spook key's address
   book: Book!
   amount: BigInt!
   expiry: BigInt!
   gasBudget: BigInt!
-  writtenAt: BigInt!
-  writtenTx: String!
-  # USDC that has left the cheque, cross-network fees included.
+  createdAt: BigInt!
+  creationTx: String!
+  # USDC that has left the spook, cross-network fees included.
   spent: BigInt!
   paymentCount: Int!
   cancelledAt: BigInt
   refunded: BigInt
-  payments: [Payment!]! @derivedFrom(field: "cheque")
+  payments: [Payment!]! @derivedFrom(field: "spook")
 }
 
 type Payment {
   id: ID! # chainId-txHash-logIndex of the payment on Monad
-  cheque: Cheque!
+  spook: Spook!
   book: String!
   recipient: String!
   chainId: Int! # where the payee is paid
@@ -64,8 +64,8 @@ type CrossChainMatch {
 type Stats {
   id: ID! # "global-143" or "global-10143"
   books: Int!
-  cheques: Int!
-  written: BigInt! # USDC escrowed into cheques
+  spooks: Int!
+  created: BigInt! # USDC escrowed into spooks
   payments: Int!
   paidOut: BigInt! # USDC payees asked for
   crossChainPayments: Int!
