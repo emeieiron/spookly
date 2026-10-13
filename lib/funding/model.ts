@@ -95,6 +95,9 @@ export function parseTokens(value: unknown): FundingToken[] {
     return t as FundingToken
   })
 }
+export function parseTokenCatalog(value: unknown): FundingToken[] {
+  return parseTokens(record(value).tokens)
+}
 export function destinationToken(
   tokens: FundingToken[],
   target: FundingTarget,
@@ -168,6 +171,7 @@ export const depositAmount = (quote: FundingQuote) =>
   quote.quote.maxAmountIn ?? quote.quote.amountIn
 export const quoteExpiry = (quote: FundingQuote) =>
   Math.min(
+    Date.parse(quote.quoteRequest.deadline),
     Date.parse(quote.quote.deadline ?? quote.quoteRequest.deadline),
     Date.parse(
       quote.quote.timeWhenInactive ??

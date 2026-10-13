@@ -20,24 +20,31 @@ test("funding API limits output to native mainnet assets and validates requests 
     blockchain: "monad",
     contractAddress: USDC,
   }
+  let minimum: string | null = null
   let captured: Record<string, unknown> | null = null
   globalThis.fetch = async (input, init) => {
     calls.push(String(input))
     if (String(input).includes("/tokens/"))
-      return Response.json([source, destination])
+      return Response.json({ asset_stats: [], tokens: [source, destination] })
     if (String(input).includes("/quote/")) {
+      if (minimum)
+        return Response.json(
+          { message: `Amount is too low for bridge, try at least ${minimum}` },
+          { status: 400 }
+        )
       captured = JSON.parse(String(init?.body))
       const q = captured!
       return Response.json({
         quoteRequest: q,
         quote: {
           amountIn: "1100000",
-          maxAmountIn: "1111000",
           amountOut: q.amount,
           minAmountOut: q.amount,
           timeEstimate: 30,
           depositAddress: "0x2222222222222222222222222222222222222222",
-          deadline: q.deadline,
+          deadline: new Date(
+            Date.parse(String(q.deadline)) + 3 * 86400000
+          ).toISOString(),
         },
       })
     }
@@ -113,6 +120,13 @@ test("funding API limits output to native mainnet assets and validates requests 
     )
     assert.equal((await status.json()).status, "PROCESSING")
     assert.ok(calls.at(-1)?.includes("depositMemo=123"))
+    minimum = "1200001"
+    const rejected = await POST(request(body))
+    assert.equal(rejected.status, 422)
+    assert.equal(
+      (await rejected.json()).error,
+      "This route needs at least 1.2001 USDC. Choose another source chain."
+    )
     delete process.env.AURORA_API_KEY
     assert.equal(
       (await GET(new Request("http://localhost/api/funding"))).status,

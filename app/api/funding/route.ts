@@ -1,8 +1,8 @@
-import { isAddress } from "viem"
+import { formatUnits, isAddress } from "viem"
 import { IS_MAINNET, USDC } from "@/lib/chain"
 import {
   destinationToken,
-  parseTokens,
+  parseTokenCatalog,
   units,
   validateQuote,
   type FundingTarget,
@@ -12,9 +12,17 @@ import { sourceChain } from "@/lib/funding/chains"
 
 const BASE = "https://intents-api.aurora.dev"
 const headers = { "Cache-Control": "no-store" }
-let catalog: { at: number; tokens: ReturnType<typeof parseTokens> } | null =
-  null
-async function aurora(path: string, init?: RequestInit) {
+let catalog: {
+  at: number
+  tokens: ReturnType<typeof parseTokenCatalog>
+} | null = null
+class FundingMinimumError extends Error {}
+
+async function aurora(
+  path: string,
+  init?: RequestInit,
+  target?: FundingTarget
+) {
   const key = process.env.AURORA_API_KEY
   if (!IS_MAINNET || !key)
     throw new Error("Cross-chain funding is unavailable right now.")
@@ -26,19 +34,38 @@ async function aurora(path: string, init?: RequestInit) {
       signal: AbortSignal.timeout(25_000),
     }
   )
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 400 && target) {
+      const body = await response.json().catch(() => null)
+      const minimum =
+        typeof body?.message === "string"
+          ? /^Amount is too low for bridge, try at least (\d{1,78})$/.exec(
+              body.message
+            )?.[1]
+          : undefined
+      if (minimum) {
+        const decimals = target.symbol === "USDC" ? 6 : 18
+        const precision = 10n ** BigInt(decimals - 4)
+        const rounded =
+          ((BigInt(minimum) + precision - 1n) / precision) * precision
+        throw new FundingMinimumError(
+          `This route needs at least ${formatUnits(rounded, decimals)} ${target.symbol}. Choose another source chain.`
+        )
+      }
+    }
     throw new Error(
       response.status === 429
         ? "Funding is busy. Try again in a moment."
         : "Couldn't get a funding quote or status. Try again later."
     )
+  }
   return response.json()
 }
 async function tokens() {
   if (!catalog || Date.now() - catalog.at > 60_000)
     catalog = {
       at: Date.now(),
-      tokens: parseTokens(await aurora("tokens/{key}")),
+      tokens: parseTokenCatalog(await aurora("tokens/{key}")),
     }
   return catalog.tokens
 }
@@ -130,16 +157,20 @@ export async function POST(request: Request) {
       recipientType: "DESTINATION_CHAIN",
       deadline: new Date(Date.now() + 20 * 60_000).toISOString(),
     }
-    const result = await aurora("quote/{key}", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(quoteRequest),
-    })
+    const result = await aurora(
+      "quote/{key}",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(quoteRequest),
+      },
+      body.target
+    )
     return Response.json(validateQuote(result, quoteRequest), { headers })
   } catch (e) {
     return Response.json(
       { error: e instanceof Error ? e.message : "Funding is unavailable" },
-      { status: 502, headers }
+      { status: e instanceof FundingMinimumError ? 422 : 502, headers }
     )
   }
 }

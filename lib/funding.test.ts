@@ -8,6 +8,7 @@ import {
   canCloseUnpaid,
   parseStatus,
   parseTokens,
+  parseTokenCatalog,
   quoteExpiry,
   readSession,
   sessionKey,
@@ -295,4 +296,34 @@ test("delegated wallet funding includes the reserve only when the cheque spends 
     ),
     []
   )
+})
+
+test("Aurora's live catalog wrapper is unwrapped before exposing the token list", () => {
+  assert.deepEqual(parseTokenCatalog({ asset_stats: [], tokens: [token] }), [
+    token,
+  ])
+  assert.throws(() => parseTokenCatalog([token]))
+  assert.throws(() => parseTokenCatalog({ asset_stats: [] }))
+  assert.throws(() =>
+    parseTokenCatalog({ tokens: [{ ...token, decimals: "6" }] })
+  )
+})
+
+test("a long-lived deposit address cannot extend the user's requested funding deadline", () => {
+  const requestDeadline = Date.now() + 20 * 60000
+  const liveShape = {
+    ...quote,
+    quoteRequest: {
+      ...request,
+      deadline: new Date(requestDeadline).toISOString(),
+    },
+    quote: {
+      ...quote.quote,
+      maxAmountIn: undefined,
+      deadline: new Date(requestDeadline + 3 * 86400000).toISOString(),
+      timeWhenInactive: new Date(requestDeadline + 3 * 86400000).toISOString(),
+    },
+  }
+  assert.equal(quoteExpiry(liveShape), requestDeadline)
+  assert.equal(depositAmount(liveShape), liveShape.quote.amountIn)
 })
