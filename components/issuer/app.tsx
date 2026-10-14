@@ -41,6 +41,7 @@ import { FACTORY, USDC, erc20Abi, monad } from "@/lib/chain"
 import { errorMessage, publicClient } from "@/lib/spook-payment"
 import { shortAddress } from "@/lib/money"
 import { APP_HOME, SITE_URL } from "@/lib/hosts"
+import { cn } from "@/lib/utils"
 import type { SignerClient, SponsorSender } from "@/lib/wallet-send"
 import { creationGasReserve } from "@/lib/funding/requirements"
 import { isDelegated } from "@/lib/monad-reserve"
@@ -361,6 +362,7 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
       }}
     >
       <AppFrame
+        welcome={!signedIn}
         account={connected ? wallet.account : undefined}
         onSignOut={signedIn ? signOut : undefined}
         protection={
@@ -370,19 +372,27 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
         }
       >
         {!ready ? null : !authenticated ? (
-          <div className="ghost-stage flex flex-col gap-6">
-            <SpooklyGhost className="h-20 self-start" />
-            <div className="flex flex-col gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight">
-                Spendable links
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Create USDC Spooks anyone can spend straight from a link.
-              </p>
+          <div className="ghost-stage flex flex-1 items-center justify-center py-10 sm:py-16">
+            <div className="grid w-full max-w-3xl items-center justify-items-center gap-10 md:grid-cols-[0.8fr_1.2fr] md:gap-16">
+              <SpooklyGhost className="h-36 w-auto sm:h-44 md:h-[clamp(9rem,32dvh,18rem)]" />
+              <div className="flex w-full max-w-md flex-col items-center gap-8 text-center md:items-start md:text-left">
+                <div className="flex flex-col gap-4">
+                  <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-5xl md:text-[clamp(2.25rem,7dvh,3.75rem)]">
+                    Spendable links
+                  </h1>
+                  <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">
+                    Create USDC Spooks anyone can spend straight from a link.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  className="w-full max-w-xs md:w-56"
+                  onClick={() => login()}
+                >
+                  Sign in
+                </Button>
+              </div>
             </div>
-            <Button size="lg" onClick={() => login()}>
-              Sign in
-            </Button>
           </div>
         ) : walletsReady && !active ? (
           <p className="text-sm text-destructive">
@@ -402,15 +412,22 @@ export function AppFrame({
   account,
   onSignOut,
   protection,
+  welcome = false,
 }: {
   children?: React.ReactNode
   account?: Address
   onSignOut?: () => void
   protection?: React.ReactNode
+  welcome?: boolean
 }) {
   const [confirming, setConfirming] = useState(false)
   return (
-    <main className="mx-auto flex h-svh w-full max-w-md flex-col gap-6 px-4 py-6">
+    <main
+      className={cn(
+        "mx-auto flex w-full flex-col gap-6 px-4 py-6",
+        welcome ? "min-h-dvh max-w-5xl sm:px-8 sm:py-8" : "h-svh max-w-md"
+      )}
+    >
       <header className="flex h-9 shrink-0 items-center justify-between gap-3 [view-transition-name:app-header]">
         <Link
           href={onSignOut ? APP_HOME : SITE_URL}
