@@ -242,6 +242,55 @@
   }
 }
 
+/* The signed-out ghost: its eyes close in place, and it dances while Sign in is hovered or focused. */
+.ghost {
+  transform-origin: 50% 100%;
+}
+.ghost-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ghost-blink .ghost-eye {
+  animation: ghost-blink 200ms ease-in-out;
+}
+.ghost-blink-twice .ghost-eye {
+  animation: ghost-blink-twice 460ms ease-in-out;
+}
+@media (hover: hover) {
+  .ghost-stage:has([data-slot="button"]:hover) .ghost {
+    animation: ghost-dance 900ms ease-in-out infinite;
+  }
+}
+.ghost-stage:has([data-slot="button"]:focus-visible) .ghost {
+  animation: ghost-dance 900ms ease-in-out infinite;
+}
+@keyframes ghost-blink {
+  50% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes ghost-blink-twice {
+  22%,
+  78% {
+    transform: scaleY(0.1);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes ghost-dance {
+  20% {
+    transform: translate(-14px, -12px) rotate(-12deg);
+  }
+  40%,
+  80% {
+    transform: scale(1.06, 0.94);
+  }
+  60% {
+    transform: translate(14px, -12px) rotate(12deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-group(*),
   ::view-transition-old(*),
@@ -252,6 +301,10 @@
   .qr-print::after,
   .share-actions {
     animation: none;
+  }
+  .ghost,
+  .ghost-eye {
+    animation: none !important;
   }
   .qr-print::after {
     display: none;

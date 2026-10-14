@@ -20,6 +20,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { Check, Copy, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SpooklyGhost } from "@/components/spookly-ghost"
 import {
   forgetSealedKeys,
   isLive,
@@ -369,7 +370,8 @@ export function IssuerApp({ children }: { children: React.ReactNode }) {
         }
       >
         {!ready ? null : !authenticated ? (
-          <div className="flex flex-col gap-6">
+          <div className="ghost-stage flex flex-col gap-6">
+            <SpooklyGhost className="h-20 self-start" />
             <div className="flex flex-col gap-2">
               <h1 className="text-3xl font-semibold tracking-tight">
                 Spendable links
