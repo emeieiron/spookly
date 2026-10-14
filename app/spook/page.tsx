@@ -10,7 +10,6 @@ export const metadata: Metadata = {
     title: "Spookly Spend",
     statusBarStyle: "default",
   },
-  icons: { apple: "/pwa/apple-touch-icon.png" },
 }
 
 export const viewport: Viewport = {
